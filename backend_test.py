@@ -299,6 +299,69 @@ class TaskPrioritizerAPITester:
             print(f"   Recommendation: {insights.get('recommendation', 'N/A')[:100]}...")
         return success
 
+    def test_google_oauth_login(self):
+        """Test Google OAuth login endpoint (should return error since not configured)"""
+        success, response = self.run_test(
+            "Google OAuth Login (Not Configured)",
+            "GET",
+            "auth/google/login",
+            400  # Expecting 400 since Google OAuth not configured
+        )
+        if success:
+            detail = response.get('detail', '')
+            print(f"   Expected error: {detail}")
+            if 'not configured' in detail.lower():
+                print("   ✅ Correct error message for unconfigured OAuth")
+            else:
+                print("   ⚠️  Unexpected error message")
+        return success
+
+    def test_settings_dark_mode(self):
+        """Test dark mode settings functionality"""
+        # First get current settings
+        success, current_settings = self.run_test(
+            "Get Settings (Check Dark Mode Field)",
+            "GET",
+            "settings",
+            200
+        )
+        
+        if not success:
+            return False
+            
+        # Check if dark_mode field exists
+        has_dark_mode = 'dark_mode' in current_settings
+        has_google_connected = 'google_calendar_connected' in current_settings
+        print(f"   Dark mode field present: {has_dark_mode}")
+        print(f"   Google calendar connected field present: {has_google_connected}")
+        
+        if not has_dark_mode:
+            print("   ❌ Missing dark_mode field in settings")
+            return False
+            
+        # Test updating dark mode
+        current_dark_mode = current_settings.get('dark_mode', False)
+        new_dark_mode = not current_dark_mode
+        
+        success, response = self.run_test(
+            f"Update Dark Mode Setting (to {new_dark_mode})",
+            "PUT",
+            "settings",
+            200,
+            data={"dark_mode": new_dark_mode}
+        )
+        
+        if success:
+            updated_dark_mode = response.get('dark_mode')
+            print(f"   Dark mode updated to: {updated_dark_mode}")
+            if updated_dark_mode == new_dark_mode:
+                print("   ✅ Dark mode setting updated correctly")
+            else:
+                print("   ❌ Dark mode setting not updated correctly")
+                return False
+                
+        return success
+
     def cleanup_created_tasks(self):
         """Clean up tasks created during testing"""
         print(f"\n🧹 Cleaning up {len(self.created_task_ids)} created tasks...")
