@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import Dashboard from "@/components/Dashboard";
 import AddTaskDialog from "@/components/AddTaskDialog";
 import SettingsDialog from "@/components/SettingsDialog";
+import WeeklyReportDialog from "@/components/WeeklyReportDialog";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -31,6 +32,7 @@ function App() {
   const [isPrioritizing, setIsPrioritizing] = useState(false);
   const [showAddTask, setShowAddTask] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showReport, setShowReport] = useState(false);
   const [activeTask, setActiveTask] = useState(null);
   const [currentSession, setCurrentSession] = useState(null);
 
@@ -215,6 +217,7 @@ function App() {
           setCurrentSession(null);
         }}
         onOpenSettings={() => setShowSettings(true)}
+        onOpenReport={() => setShowReport(true)}
       />
 
       <AddTaskDialog
@@ -228,6 +231,11 @@ function App() {
         onClose={() => setShowSettings(false)}
         settings={settings}
         onSave={updateSettings}
+      />
+
+      <WeeklyReportDialog
+        open={showReport}
+        onClose={() => setShowReport(false)}
       />
 
       <Toaster 
