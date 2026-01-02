@@ -12,9 +12,9 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { Clock, CalendarDays, Mail, Save } from "lucide-react";
+import { Clock, CalendarDays, Mail, Save, Moon, Link2, CheckCircle2 } from "lucide-react";
 
-const SettingsDialog = ({ open, onClose, settings, onSave }) => {
+const SettingsDialog = ({ open, onClose, settings, onSave, onOpenGoogleIntegration }) => {
   const [localSettings, setLocalSettings] = useState(settings);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -31,6 +31,8 @@ const SettingsDialog = ({ open, onClose, settings, onSave }) => {
   const updateSetting = (key, value) => {
     setLocalSettings((prev) => ({ ...prev, [key]: value }));
   };
+
+  const isGoogleConnected = settings.google_calendar_connected || settings.gmail_connected;
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -159,40 +161,70 @@ const SettingsDialog = ({ open, onClose, settings, onSave }) => {
 
           <Separator />
 
+          {/* Appearance */}
+          <div>
+            <h3 className="text-sm font-medium flex items-center gap-2 mb-4">
+              <Moon className="h-4 w-4 text-violet-500" />
+              Appearance
+            </h3>
+            <div className="space-y-4 pl-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-sm">Dark Mode</Label>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Night-friendly dark theme
+                  </p>
+                </div>
+                <Switch
+                  checked={localSettings.dark_mode}
+                  onCheckedChange={(checked) =>
+                    updateSetting("dark_mode", checked)
+                  }
+                  data-testid="dark-mode-switch"
+                />
+              </div>
+            </div>
+          </div>
+
+          <Separator />
+
           {/* Integrations */}
           <div>
-            <h3 className="text-sm font-medium mb-4">Integrations</h3>
+            <h3 className="text-sm font-medium flex items-center gap-2 mb-4">
+              <Link2 className="h-4 w-4 text-violet-500" />
+              Integrations
+            </h3>
             <div className="space-y-4 pl-6">
-              <div className="flex items-center justify-between p-3 rounded-xl bg-muted/30">
+              <div
+                className={`flex items-center justify-between p-3 rounded-xl cursor-pointer transition-colors ${
+                  isGoogleConnected
+                    ? "bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800"
+                    : "bg-muted/30 hover:bg-muted/50"
+                }`}
+                onClick={onOpenGoogleIntegration}
+              >
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-violet-100 rounded-lg">
-                    <CalendarDays className="h-4 w-4 text-violet-600" />
+                  <div className={`p-2 rounded-lg ${isGoogleConnected ? "bg-green-100 dark:bg-green-900" : "bg-violet-100 dark:bg-violet-900"}`}>
+                    {isGoogleConnected ? (
+                      <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+                    ) : (
+                      <Link2 className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+                    )}
                   </div>
                   <div>
-                    <p className="text-sm font-medium">Google Calendar</p>
+                    <p className="text-sm font-medium">Google Account</p>
                     <p className="text-xs text-muted-foreground">
-                      Import events as tasks
+                      {isGoogleConnected
+                        ? `Connected: ${settings.google_email || "Calendar & Gmail"}`
+                        : "Calendar & Gmail integration"}
                     </p>
                   </div>
                 </div>
-                <Badge variant="secondary" className="text-xs">
-                  Coming Soon
-                </Badge>
-              </div>
-              <div className="flex items-center justify-between p-3 rounded-xl bg-muted/30">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-rose-100 rounded-lg">
-                    <Mail className="h-4 w-4 text-rose-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">Gmail</p>
-                    <p className="text-xs text-muted-foreground">
-                      Extract tasks from emails
-                    </p>
-                  </div>
-                </div>
-                <Badge variant="secondary" className="text-xs">
-                  Coming Soon
+                <Badge
+                  variant={isGoogleConnected ? "default" : "secondary"}
+                  className={`text-xs ${isGoogleConnected ? "bg-green-600" : ""}`}
+                >
+                  {isGoogleConnected ? "Connected" : "Connect"}
                 </Badge>
               </div>
             </div>
