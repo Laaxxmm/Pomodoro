@@ -13,15 +13,51 @@
     min-height: calc(100vh - 4rem);
 }
 
-@media (max-width: 1280px) {
+@media (max-width: 1400px) {
+    .bento-grid {
+        grid-template-columns: 260px 1fr 300px;
+        gap: 1rem;
+    }
+}
+
+@media (max-width: 1200px) {
+    .bento-grid {
+        grid-template-columns: 1fr 320px;
+        gap: 1rem;
+    }
+    .bento-grid > aside:first-child {
+        display: none;
+    }
+}
+
+@media (max-width: 900px) {
     .bento-grid {
         grid-template-columns: 1fr;
+        gap: 1rem;
     }
+    .bento-grid > aside:last-child {
+        order: -1;
+    }
+}
+
+/* Mobile sidebar overlay */
+.mobile-sidebar {
+    @apply fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-lg border-t border-border/40 p-4;
+}
+
+.mobile-stats {
+    @apply flex items-center justify-around gap-4;
 }
 
 /* Sidebar styles */
 .sidebar {
     @apply sticky top-6 h-fit;
+}
+
+@media (max-width: 1200px) {
+    .sidebar {
+        position: static;
+    }
 }
 
 /* Task list animations */
