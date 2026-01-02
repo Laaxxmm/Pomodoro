@@ -1,4 +1,5 @@
-from fastapi import FastAPI, APIRouter, HTTPException
+from fastapi import FastAPI, APIRouter, HTTPException, Query
+from fastapi.responses import RedirectResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -10,6 +11,8 @@ from typing import List, Optional
 import uuid
 from datetime import datetime, timezone, timedelta
 from emergentintegrations.llm.chat import LlmChat, UserMessage
+import httpx
+import base64
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -21,6 +24,17 @@ db = client[os.environ['DB_NAME']]
 
 # Emergent LLM Key
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
+
+# Google OAuth Config
+GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
+GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', '')
+GOOGLE_REDIRECT_URI = os.environ.get('GOOGLE_REDIRECT_URI', '')
+GOOGLE_SCOPES = [
+    "https://www.googleapis.com/auth/calendar.readonly",
+    "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/userinfo.email",
+    "https://www.googleapis.com/auth/userinfo.profile"
+]
 
 app = FastAPI(title="FocusFlow - AI Task Prioritizer")
 api_router = APIRouter(prefix="/api")
@@ -37,7 +51,7 @@ class TaskCreate(BaseModel):
     deadline: Optional[str] = None
     estimated_minutes: Optional[int] = 25
     category: Optional[str] = "general"
-    source: str = "manual"  # manual, calendar, email
+    source: str = "manual"
 
 class Task(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -70,7 +84,7 @@ class PomodoroSession(BaseModel):
     started_at: str
     ended_at: Optional[str] = None
     duration_seconds: int = 0
-    session_type: str = "work"  # work, short_break, long_break
+    session_type: str = "work"
     completed: bool = False
 
 class Settings(BaseModel):
@@ -82,6 +96,11 @@ class Settings(BaseModel):
     auto_rollover: bool = True
     google_calendar_connected: bool = False
     gmail_connected: bool = False
+    google_access_token: Optional[str] = None
+    google_refresh_token: Optional[str] = None
+    google_token_expiry: Optional[str] = None
+    google_email: Optional[str] = None
+    dark_mode: bool = False
 
 # ============ HELPER FUNCTIONS ============
 
@@ -94,13 +113,57 @@ async def get_settings():
         return default_settings
     return settings
 
+async def refresh_google_token():
+    """Refresh Google access token if expired"""
+    settings = await get_settings()
+    if not settings.get("google_refresh_token"):
+        return None
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://oauth2.googleapis.com/token",
+                data={
+                    "client_id": GOOGLE_CLIENT_ID,
+                    "client_secret": GOOGLE_CLIENT_SECRET,
+                    "refresh_token": settings["google_refresh_token"],
+                    "grant_type": "refresh_token"
+                }
+            )
+            if response.status_code == 200:
+                token_data = response.json()
+                await db.settings.update_one(
+                    {"id": "user_settings"},
+                    {"$set": {
+                        "google_access_token": token_data["access_token"],
+                        "google_token_expiry": (datetime.now(timezone.utc) + timedelta(seconds=token_data.get("expires_in", 3600))).isoformat()
+                    }}
+                )
+                return token_data["access_token"]
+    except Exception as e:
+        logger.error(f"Token refresh error: {e}")
+    return None
+
+async def get_valid_google_token():
+    """Get a valid Google access token, refreshing if needed"""
+    settings = await get_settings()
+    if not settings.get("google_access_token"):
+        return None
+    
+    # Check if token is expired
+    if settings.get("google_token_expiry"):
+        expiry = datetime.fromisoformat(settings["google_token_expiry"].replace("Z", "+00:00"))
+        if datetime.now(timezone.utc) >= expiry:
+            return await refresh_google_token()
+    
+    return settings.get("google_access_token")
+
 async def prioritize_tasks_with_ai(tasks: List[dict]) -> dict:
     """Use AI to prioritize tasks and select top 3-4 for today"""
     if not tasks:
         return {"selected_task_ids": [], "reason": "No tasks available"}
     
     if not EMERGENT_LLM_KEY:
-        # Fallback: sort by deadline and rollover count
         sorted_tasks = sorted(tasks, key=lambda x: (
             -x.get('rollover_count', 0),
             x.get('deadline') or '9999-12-31',
@@ -141,17 +204,15 @@ Respond in JSON format:
         task_list = "\n".join([
             f"- ID: {t['id']}, Title: {t['title']}, Deadline: {t.get('deadline', 'None')}, "
             f"Est: {t.get('estimated_minutes', 25)}min, Category: {t.get('category', 'general')}, "
-            f"Rollover: {t.get('rollover_count', 0)}, Desc: {t.get('description', '')[:100]}"
+            f"Source: {t.get('source', 'manual')}, Rollover: {t.get('rollover_count', 0)}, Desc: {t.get('description', '')[:100]}"
             for t in tasks
         ])
         
         message = UserMessage(text=f"Today's date: {datetime.now().date().isoformat()}\n\nTasks to prioritize:\n{task_list}")
         response = await chat.send_message(message)
         
-        # Parse AI response
         import json
         try:
-            # Extract JSON from response
             json_start = response.find('{')
             json_end = response.rfind('}') + 1
             if json_start != -1 and json_end > json_start:
@@ -160,7 +221,6 @@ Respond in JSON format:
         except json.JSONDecodeError:
             pass
         
-        # Fallback if AI response parsing fails
         sorted_tasks = sorted(tasks, key=lambda x: (-x.get('rollover_count', 0), x.get('deadline') or '9999-12-31'))
         return {
             "selected_task_ids": [t['id'] for t in sorted_tasks[:4]],
@@ -177,7 +237,348 @@ Respond in JSON format:
             "task_priorities": {}
         }
 
-# ============ ROUTES ============
+# ============ GOOGLE OAUTH ROUTES ============
+
+@api_router.get("/auth/google/login")
+async def google_login():
+    """Initiate Google OAuth flow"""
+    if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
+        raise HTTPException(status_code=400, detail="Google OAuth not configured. Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to backend/.env")
+    
+    scope = " ".join(GOOGLE_SCOPES)
+    auth_url = (
+        f"https://accounts.google.com/o/oauth2/v2/auth?"
+        f"client_id={GOOGLE_CLIENT_ID}&"
+        f"redirect_uri={GOOGLE_REDIRECT_URI}&"
+        f"response_type=code&"
+        f"scope={scope}&"
+        f"access_type=offline&"
+        f"prompt=consent"
+    )
+    return {"authorization_url": auth_url}
+
+@api_router.get("/auth/google/callback")
+async def google_callback(code: str, error: Optional[str] = None):
+    """Handle Google OAuth callback"""
+    if error:
+        return RedirectResponse(url=f"/?error={error}")
+    
+    try:
+        # Exchange code for tokens
+        async with httpx.AsyncClient() as http_client:
+            token_response = await http_client.post(
+                "https://oauth2.googleapis.com/token",
+                data={
+                    "code": code,
+                    "client_id": GOOGLE_CLIENT_ID,
+                    "client_secret": GOOGLE_CLIENT_SECRET,
+                    "redirect_uri": GOOGLE_REDIRECT_URI,
+                    "grant_type": "authorization_code"
+                }
+            )
+            
+            if token_response.status_code != 200:
+                logger.error(f"Token exchange failed: {token_response.text}")
+                return RedirectResponse(url="/?error=token_exchange_failed")
+            
+            token_data = token_response.json()
+            
+            # Get user info
+            user_response = await http_client.get(
+                "https://www.googleapis.com/oauth2/v2/userinfo",
+                headers={"Authorization": f"Bearer {token_data['access_token']}"}
+            )
+            user_info = user_response.json()
+            
+            # Save tokens to settings
+            expiry = datetime.now(timezone.utc) + timedelta(seconds=token_data.get("expires_in", 3600))
+            await db.settings.update_one(
+                {"id": "user_settings"},
+                {"$set": {
+                    "google_access_token": token_data["access_token"],
+                    "google_refresh_token": token_data.get("refresh_token"),
+                    "google_token_expiry": expiry.isoformat(),
+                    "google_email": user_info.get("email"),
+                    "google_calendar_connected": True,
+                    "gmail_connected": True
+                }},
+                upsert=True
+            )
+            
+            return RedirectResponse(url="/?google_connected=true")
+            
+    except Exception as e:
+        logger.error(f"Google callback error: {e}")
+        return RedirectResponse(url=f"/?error={str(e)[:50]}")
+
+@api_router.post("/auth/google/disconnect")
+async def google_disconnect():
+    """Disconnect Google account"""
+    await db.settings.update_one(
+        {"id": "user_settings"},
+        {"$set": {
+            "google_access_token": None,
+            "google_refresh_token": None,
+            "google_token_expiry": None,
+            "google_email": None,
+            "google_calendar_connected": False,
+            "gmail_connected": False
+        }}
+    )
+    return {"success": True}
+
+# ============ GOOGLE CALENDAR ROUTES ============
+
+@api_router.get("/calendar/events")
+async def get_calendar_events(days: int = 7):
+    """Get upcoming calendar events"""
+    token = await get_valid_google_token()
+    if not token:
+        raise HTTPException(status_code=401, detail="Google not connected")
+    
+    try:
+        time_min = datetime.now(timezone.utc).isoformat()
+        time_max = (datetime.now(timezone.utc) + timedelta(days=days)).isoformat()
+        
+        async with httpx.AsyncClient() as http_client:
+            response = await http_client.get(
+                "https://www.googleapis.com/calendar/v3/calendars/primary/events",
+                headers={"Authorization": f"Bearer {token}"},
+                params={
+                    "timeMin": time_min,
+                    "timeMax": time_max,
+                    "singleEvents": "true",
+                    "orderBy": "startTime",
+                    "maxResults": 50
+                }
+            )
+            
+            if response.status_code != 200:
+                raise HTTPException(status_code=response.status_code, detail="Failed to fetch calendar events")
+            
+            data = response.json()
+            events = []
+            for item in data.get("items", []):
+                start = item.get("start", {})
+                events.append({
+                    "id": item.get("id"),
+                    "title": item.get("summary", "Untitled"),
+                    "description": item.get("description", ""),
+                    "start": start.get("dateTime") or start.get("date"),
+                    "end": item.get("end", {}).get("dateTime") or item.get("end", {}).get("date"),
+                    "location": item.get("location"),
+                    "all_day": "date" in start
+                })
+            
+            return {"events": events}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Calendar fetch error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.post("/calendar/import")
+async def import_calendar_events(days: int = 7):
+    """Import calendar events as tasks"""
+    events_response = await get_calendar_events(days)
+    events = events_response["events"]
+    
+    imported = 0
+    for event in events:
+        # Skip all-day events or events without clear action items
+        if event.get("all_day"):
+            continue
+        
+        # Check if already imported
+        existing = await db.tasks.find_one({"source_id": event["id"], "source": "calendar"})
+        if existing:
+            continue
+        
+        # Parse deadline from event start
+        deadline = None
+        if event.get("start"):
+            try:
+                if "T" in event["start"]:
+                    deadline = event["start"][:10]
+                else:
+                    deadline = event["start"]
+            except:
+                pass
+        
+        task = Task(
+            title=event["title"],
+            description=event.get("description", "")[:500] if event.get("description") else f"Calendar event: {event.get('location', '')}",
+            deadline=deadline,
+            estimated_minutes=30,
+            category="meeting",
+            source="calendar"
+        )
+        task_dict = task.model_dump()
+        task_dict["source_id"] = event["id"]
+        await db.tasks.insert_one(task_dict)
+        imported += 1
+    
+    return {"imported": imported, "total_events": len(events)}
+
+# ============ GMAIL ROUTES ============
+
+@api_router.get("/gmail/messages")
+async def get_gmail_messages(max_results: int = 10, query: str = "is:unread"):
+    """Get recent Gmail messages"""
+    token = await get_valid_google_token()
+    if not token:
+        raise HTTPException(status_code=401, detail="Google not connected")
+    
+    try:
+        async with httpx.AsyncClient() as http_client:
+            # List messages
+            list_response = await http_client.get(
+                "https://gmail.googleapis.com/gmail/v1/users/me/messages",
+                headers={"Authorization": f"Bearer {token}"},
+                params={"q": query, "maxResults": max_results}
+            )
+            
+            if list_response.status_code != 200:
+                raise HTTPException(status_code=list_response.status_code, detail="Failed to fetch Gmail messages")
+            
+            messages_data = list_response.json()
+            messages = []
+            
+            for msg in messages_data.get("messages", [])[:max_results]:
+                # Get full message
+                msg_response = await http_client.get(
+                    f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{msg['id']}",
+                    headers={"Authorization": f"Bearer {token}"},
+                    params={"format": "full"}
+                )
+                
+                if msg_response.status_code == 200:
+                    msg_data = msg_response.json()
+                    headers = {h["name"]: h["value"] for h in msg_data.get("payload", {}).get("headers", [])}
+                    
+                    # Extract body
+                    body = ""
+                    payload = msg_data.get("payload", {})
+                    if "parts" in payload:
+                        for part in payload["parts"]:
+                            if part.get("mimeType") == "text/plain" and part.get("body", {}).get("data"):
+                                body = base64.urlsafe_b64decode(part["body"]["data"]).decode("utf-8", errors="ignore")
+                                break
+                    elif payload.get("body", {}).get("data"):
+                        body = base64.urlsafe_b64decode(payload["body"]["data"]).decode("utf-8", errors="ignore")
+                    
+                    messages.append({
+                        "id": msg["id"],
+                        "subject": headers.get("Subject", "(No Subject)"),
+                        "from": headers.get("From", "Unknown"),
+                        "date": headers.get("Date", ""),
+                        "snippet": msg_data.get("snippet", ""),
+                        "body": body[:2000] if body else msg_data.get("snippet", "")
+                    })
+            
+            return {"messages": messages}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Gmail fetch error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.post("/gmail/extract-tasks")
+async def extract_tasks_from_email(email_id: str):
+    """Extract action items from an email using AI"""
+    # Get the email
+    token = await get_valid_google_token()
+    if not token:
+        raise HTTPException(status_code=401, detail="Google not connected")
+    
+    try:
+        async with httpx.AsyncClient() as http_client:
+            msg_response = await http_client.get(
+                f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{email_id}",
+                headers={"Authorization": f"Bearer {token}"},
+                params={"format": "full"}
+            )
+            
+            if msg_response.status_code != 200:
+                raise HTTPException(status_code=404, detail="Email not found")
+            
+            msg_data = msg_response.json()
+            headers = {h["name"]: h["value"] for h in msg_data.get("payload", {}).get("headers", [])}
+            
+            # Extract body
+            body = ""
+            payload = msg_data.get("payload", {})
+            if "parts" in payload:
+                for part in payload["parts"]:
+                    if part.get("mimeType") == "text/plain" and part.get("body", {}).get("data"):
+                        body = base64.urlsafe_b64decode(part["body"]["data"]).decode("utf-8", errors="ignore")
+                        break
+            elif payload.get("body", {}).get("data"):
+                body = base64.urlsafe_b64decode(payload["body"]["data"]).decode("utf-8", errors="ignore")
+            
+            subject = headers.get("Subject", "")
+            sender = headers.get("From", "")
+            
+            if not body:
+                body = msg_data.get("snippet", "")
+        
+        # Use AI to extract tasks
+        if not EMERGENT_LLM_KEY:
+            return {"tasks": [], "message": "AI not configured"}
+        
+        chat = LlmChat(
+            api_key=EMERGENT_LLM_KEY,
+            session_id=f"email_extract_{datetime.now().isoformat()}",
+            system_message="""Extract actionable tasks from this email. Return JSON:
+{
+    "tasks": [
+        {"title": "Task description", "deadline": "YYYY-MM-DD or null", "priority": "high/medium/low", "category": "work/personal/follow-up"}
+    ]
+}
+Only include clear action items. If no tasks found, return empty tasks array."""
+        )
+        chat.with_model("openai", "gpt-5.2")
+        
+        message = UserMessage(text=f"Subject: {subject}\nFrom: {sender}\n\nEmail body:\n{body[:3000]}")
+        response = await chat.send_message(message)
+        
+        import json
+        try:
+            json_start = response.find('{')
+            json_end = response.rfind('}') + 1
+            if json_start != -1 and json_end > json_start:
+                result = json.loads(response[json_start:json_end])
+                
+                # Create tasks from extracted items
+                created_tasks = []
+                for item in result.get("tasks", []):
+                    task = Task(
+                        title=item.get("title", ""),
+                        description=f"From email: {subject[:100]}",
+                        deadline=item.get("deadline"),
+                        estimated_minutes=25,
+                        category=item.get("category", "email"),
+                        source="email"
+                    )
+                    task_dict = task.model_dump()
+                    task_dict["source_id"] = email_id
+                    task_dict["priority_score"] = 80 if item.get("priority") == "high" else 50 if item.get("priority") == "medium" else 30
+                    await db.tasks.insert_one(task_dict)
+                    created_tasks.append(task_dict)
+                
+                return {"tasks": created_tasks, "extracted": len(created_tasks)}
+        except json.JSONDecodeError:
+            pass
+        
+        return {"tasks": [], "message": "Could not extract tasks"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Email extraction error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ TASK ROUTES ============
 
 @api_router.get("/")
 async def root():
@@ -185,9 +586,8 @@ async def root():
 
 @api_router.get("/health")
 async def health():
-    return {"status": "healthy", "ai_enabled": bool(EMERGENT_LLM_KEY)}
+    return {"status": "healthy", "ai_enabled": bool(EMERGENT_LLM_KEY), "google_configured": bool(GOOGLE_CLIENT_ID)}
 
-# Tasks CRUD
 @api_router.post("/tasks", response_model=Task)
 async def create_task(task_input: TaskCreate):
     """Create a new task"""
@@ -273,11 +673,9 @@ async def get_today_tasks():
     """Get AI-prioritized tasks for today"""
     today = datetime.now(timezone.utc).date().isoformat()
     
-    # Check if we have a plan for today
     plan = await db.daily_plans.find_one({"date": today}, {"_id": 0})
     
     if plan:
-        # Get the prioritized tasks
         tasks = await db.tasks.find(
             {"id": {"$in": plan["task_ids"]}, "completed": False},
             {"_id": 0}
@@ -289,7 +687,6 @@ async def get_today_tasks():
             "plan_id": plan["id"]
         }
     
-    # No plan yet, create one
     return await prioritize_today()
 
 @api_router.post("/prioritize")
@@ -298,16 +695,13 @@ async def prioritize_today():
     today = datetime.now(timezone.utc).date().isoformat()
     settings = await get_settings()
     
-    # Get all incomplete tasks
     all_tasks = await db.tasks.find({"completed": False}, {"_id": 0}).to_list(100)
     
     if not all_tasks:
         return {"date": today, "tasks": [], "reason": "No tasks to prioritize"}
     
-    # Run AI prioritization
     result = await prioritize_tasks_with_ai(all_tasks)
     
-    # Update task priorities
     task_priorities = result.get("task_priorities", {})
     for task_id, priority_info in task_priorities.items():
         await db.tasks.update_one(
@@ -318,7 +712,6 @@ async def prioritize_today():
             }}
         )
     
-    # Create/update daily plan
     plan = DailyPlan(
         date=today,
         task_ids=result["selected_task_ids"][:settings["daily_task_limit"]],
@@ -331,13 +724,11 @@ async def prioritize_today():
         upsert=True
     )
     
-    # Get the prioritized tasks
     tasks = await db.tasks.find(
         {"id": {"$in": plan.task_ids}, "completed": False},
         {"_id": 0}
     ).to_list(10)
     
-    # Sort by priority score
     tasks.sort(key=lambda x: -x.get("priority_score", 0))
     
     return {
@@ -354,7 +745,6 @@ async def rollover_tasks():
     today = datetime.now(timezone.utc).date().isoformat()
     tomorrow = (datetime.now(timezone.utc).date() + timedelta(days=1)).isoformat()
     
-    # Get unfinished tasks from today and earlier
     result = await db.tasks.update_many(
         {"completed": False, "scheduled_date": {"$lte": today}},
         {
@@ -379,7 +769,6 @@ async def start_pomodoro(task_id: str, session_type: str = "work"):
     )
     await db.pomodoro_sessions.insert_one(session.model_dump())
     
-    # Also update task started_at if this is first work session
     await db.tasks.update_one(
         {"id": task_id, "started_at": None},
         {"$set": {"started_at": session.started_at}}
@@ -404,7 +793,6 @@ async def complete_pomodoro(session_id: str, duration_seconds: int):
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Session not found")
     
-    # Update task time spent
     session = await db.pomodoro_sessions.find_one({"id": session_id}, {"_id": 0})
     if session and session["session_type"] == "work":
         await db.tasks.update_one(
@@ -419,7 +807,6 @@ async def get_pomodoro_stats():
     """Get pomodoro statistics"""
     today = datetime.now(timezone.utc).date().isoformat()
     
-    # Get today's completed work sessions
     sessions = await db.pomodoro_sessions.find({
         "session_type": "work",
         "completed": True,
@@ -444,7 +831,7 @@ async def get_user_settings():
 async def update_settings(updates: dict):
     """Update user settings"""
     allowed_fields = ["pomodoro_work_minutes", "pomodoro_short_break", "pomodoro_long_break", 
-                      "daily_task_limit", "auto_rollover", "google_calendar_connected", "gmail_connected"]
+                      "daily_task_limit", "auto_rollover", "dark_mode"]
     update_data = {k: v for k, v in updates.items() if k in allowed_fields}
     
     await db.settings.update_one(
@@ -460,16 +847,13 @@ async def get_stats():
     """Get productivity statistics"""
     today = datetime.now(timezone.utc).date().isoformat()
     
-    # Completed tasks today
     completed_today = await db.tasks.count_documents({
         "completed": True,
         "completed_at": {"$gte": today}
     })
     
-    # Total incomplete tasks
     pending = await db.tasks.count_documents({"completed": False})
     
-    # Total focus time today
     sessions = await db.pomodoro_sessions.find({
         "session_type": "work",
         "completed": True,
@@ -494,7 +878,6 @@ async def get_weekly_report():
     two_weeks_ago = (today - timedelta(days=14)).isoformat()
     today_str = today.isoformat()
     
-    # This week's data
     completed_tasks = await db.tasks.find({
         "completed": True,
         "completed_at": {"$gte": week_ago}
@@ -508,7 +891,6 @@ async def get_weekly_report():
     
     total_focus = sum(s.get("duration_seconds", 0) for s in sessions) // 60
     
-    # Previous week's data
     prev_completed = await db.tasks.count_documents({
         "completed": True,
         "completed_at": {"$gte": two_weeks_ago, "$lt": week_ago}
@@ -522,18 +904,14 @@ async def get_weekly_report():
     
     prev_focus = sum(s.get("duration_seconds", 0) for s in prev_sessions) // 60
     
-    # Calculate completion rate
     total_created = await db.tasks.count_documents({
         "created_at": {"$gte": week_ago}
     })
     completion_rate = round((len(completed_tasks) / max(total_created, 1)) * 100)
     
-    # Daily breakdown
     daily_breakdown = []
     for i in range(7):
         day = (today - timedelta(days=i)).isoformat()
-        day_next = (today - timedelta(days=i-1)).isoformat() if i > 0 else (today + timedelta(days=1)).isoformat()
-        
         day_tasks = len([t for t in completed_tasks if t.get("completed_at", "").startswith(day)])
         day_sessions = [s for s in sessions if s.get("started_at", "").startswith(day)]
         day_focus = sum(s.get("duration_seconds", 0) for s in day_sessions) // 60
@@ -547,14 +925,12 @@ async def get_weekly_report():
     
     daily_breakdown.reverse()
     
-    # Category breakdown
     category_breakdown = {}
     for task in completed_tasks:
         cat = task.get("category", "general")
         mins = task.get("time_spent_seconds", 0) // 60
         category_breakdown[cat] = category_breakdown.get(cat, 0) + max(mins, task.get("estimated_minutes", 25))
     
-    # Get cached AI insights
     insights = await db.weekly_insights.find_one({"week_start": week_ago}, {"_id": 0})
     
     return {
@@ -578,7 +954,6 @@ async def generate_weekly_insights():
     today = datetime.now(timezone.utc).date()
     week_ago = (today - timedelta(days=7)).isoformat()
     
-    # Get weekly data
     completed_tasks = await db.tasks.find({
         "completed": True,
         "completed_at": {"$gte": week_ago}
@@ -594,14 +969,12 @@ async def generate_weekly_insights():
     
     total_focus = sum(s.get("duration_seconds", 0) for s in sessions) // 60
     
-    # Category stats
     categories = {}
     for t in completed_tasks:
         cat = t.get("category", "general")
         categories[cat] = categories.get(cat, 0) + 1
     
     if not EMERGENT_LLM_KEY:
-        # Fallback insights without AI
         insights = {
             "summary": f"This week you completed {len(completed_tasks)} tasks with {total_focus} minutes of focused work.",
             "strengths": ["You're making progress on your tasks"],
@@ -637,13 +1010,12 @@ Weekly productivity data:
 - Average daily focus: {total_focus // 7} minutes
 
 Task details:
-{chr(10).join([f"- {t.get('title', 'Untitled')} ({t.get('category', 'general')})" for t in completed_tasks[:10]])}
+{chr(10).join([f"- {t.get('title', 'Untitled')} ({t.get('category', 'general')}, source: {t.get('source', 'manual')})" for t in completed_tasks[:10]])}
 """
             
             message = UserMessage(text=data_summary)
             response = await chat.send_message(message)
             
-            # Parse response
             import json
             try:
                 json_start = response.find('{')
@@ -668,7 +1040,6 @@ Task details:
                 "recommendation": "Start each day by reviewing your prioritized tasks."
             }
     
-    # Cache insights
     await db.weekly_insights.update_one(
         {"week_start": week_ago},
         {"$set": {"week_start": week_ago, "insights": insights, "generated_at": datetime.now(timezone.utc).isoformat()}},
