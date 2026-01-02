@@ -444,6 +444,11 @@ def main():
     tester.test_weekly_report()
     tester.test_generate_insights()
 
+    # Test new Google OAuth and Dark Mode features
+    print(f"\n🔗 Testing Google OAuth & Dark Mode Features...")
+    tester.test_google_oauth_login()
+    tester.test_settings_dark_mode()
+
     # Test task completion
     print(f"\n✅ Testing Task Completion...")
     if task2_id:
