@@ -17,6 +17,9 @@ import {
   BarChart3,
   Menu,
   X,
+  Moon,
+  Sun,
+  Link2,
 } from "lucide-react";
 import PomodoroTimer from "./PomodoroTimer";
 
@@ -39,6 +42,8 @@ const Dashboard = ({
   onStopPomodoro,
   onOpenSettings,
   onOpenReport,
+  onOpenGoogleIntegration,
+  onToggleDarkMode,
 }) => {
   const [showMobileMenu, setShowMobileMenu] = useState(false);
 
@@ -88,6 +93,20 @@ const Dashboard = ({
           <p className="text-sm md:text-base text-muted-foreground mt-1">{formatDate()}</p>
         </div>
         <div className="flex items-center gap-2 md:gap-3">
+          {/* Dark mode toggle */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onToggleDarkMode}
+            className="rounded-full"
+            data-testid="dark-mode-btn"
+          >
+            {settings.dark_mode ? (
+              <Sun className="h-5 w-5 text-amber-500" />
+            ) : (
+              <Moon className="h-5 w-5" />
+            )}
+          </Button>
           {/* Mobile menu button */}
           <Button
             variant="ghost"
@@ -97,6 +116,15 @@ const Dashboard = ({
             data-testid="mobile-menu-btn"
           >
             {showMobileMenu ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onOpenGoogleIntegration}
+            className="rounded-full hidden md:flex"
+            data-testid="google-integration-btn"
+          >
+            <Link2 className={`h-5 w-5 ${settings.google_calendar_connected ? "text-green-500" : ""}`} />
           </Button>
           <Button
             variant="ghost"
