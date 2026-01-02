@@ -1,34 +1,91 @@
-.App-logo {
-    height: 40vmin;
-    pointer-events: none;
+/* FocusFlow App Styles */
+
+/* Main layout */
+.app-container {
+    @apply min-h-screen bg-background;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-    .App-logo {
-        animation: App-logo-spin infinite 20s linear;
+/* Bento grid layout */
+.bento-grid {
+    display: grid;
+    grid-template-columns: 280px 1fr 320px;
+    gap: 1.5rem;
+    min-height: calc(100vh - 4rem);
+}
+
+@media (max-width: 1280px) {
+    .bento-grid {
+        grid-template-columns: 1fr;
     }
 }
 
-.App-header {
-    background-color: #0f0f10;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    font-size: calc(10px + 2vmin);
-    color: white;
+/* Sidebar styles */
+.sidebar {
+    @apply sticky top-6 h-fit;
 }
 
-.App-link {
-    color: #61dafb;
+/* Task list animations */
+.task-enter {
+    opacity: 0;
+    transform: translateX(-20px);
 }
 
-@keyframes App-logo-spin {
-    from {
-        transform: rotate(0deg);
-    }
-    to {
-        transform: rotate(360deg);
-    }
+.task-enter-active {
+    opacity: 1;
+    transform: translateX(0);
+    transition: all 0.3s ease-out;
+}
+
+/* Timer display */
+.timer-display {
+    font-family: 'JetBrains Mono', monospace;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Gold glow for AI processing */
+.ai-thinking {
+    animation: pulse-gold 1.5s ease-in-out infinite;
+}
+
+/* Button hover states */
+.btn-primary {
+    @apply bg-violet-600 hover:bg-violet-700 text-white rounded-full px-8 py-3 font-medium 
+           shadow-lg shadow-violet-500/20 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98];
+}
+
+.btn-secondary {
+    @apply bg-white text-violet-900 border border-violet-100 hover:bg-violet-50 
+           rounded-full px-6 py-3 font-medium transition-all duration-200;
+}
+
+.btn-gold {
+    @apply bg-amber-500 hover:bg-amber-600 text-white rounded-full px-6 py-3 font-medium
+           shadow-lg shadow-amber-500/20 transition-all duration-200;
+}
+
+/* Input styles */
+.input-minimal {
+    @apply bg-transparent border-b-2 border-border focus:border-violet-500 
+           rounded-none px-0 py-4 text-lg focus:ring-0 transition-colors 
+           placeholder:text-muted-foreground/50 outline-none w-full;
+}
+
+/* Card styles */
+.card-premium {
+    @apply bg-card rounded-2xl border border-border/40 shadow-sm 
+           hover:shadow-md transition-all duration-300;
+}
+
+/* Stats card */
+.stat-card {
+    @apply bg-gradient-to-br from-violet-50 to-white rounded-xl p-4 border border-violet-100/50;
+}
+
+/* Empty state */
+.empty-state {
+    @apply flex flex-col items-center justify-center py-16 text-center;
+}
+
+.empty-state-icon {
+    @apply w-16 h-16 text-muted-foreground/30 mb-4;
 }
