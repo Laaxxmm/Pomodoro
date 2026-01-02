@@ -485,6 +485,198 @@ async def get_stats():
         "pomodoros_today": len(sessions)
     }
 
+# Weekly Report
+@api_router.get("/report/weekly")
+async def get_weekly_report():
+    """Get weekly productivity report"""
+    today = datetime.now(timezone.utc).date()
+    week_ago = (today - timedelta(days=7)).isoformat()
+    two_weeks_ago = (today - timedelta(days=14)).isoformat()
+    today_str = today.isoformat()
+    
+    # This week's data
+    completed_tasks = await db.tasks.find({
+        "completed": True,
+        "completed_at": {"$gte": week_ago}
+    }, {"_id": 0}).to_list(500)
+    
+    sessions = await db.pomodoro_sessions.find({
+        "session_type": "work",
+        "completed": True,
+        "started_at": {"$gte": week_ago}
+    }, {"_id": 0}).to_list(500)
+    
+    total_focus = sum(s.get("duration_seconds", 0) for s in sessions) // 60
+    
+    # Previous week's data
+    prev_completed = await db.tasks.count_documents({
+        "completed": True,
+        "completed_at": {"$gte": two_weeks_ago, "$lt": week_ago}
+    })
+    
+    prev_sessions = await db.pomodoro_sessions.find({
+        "session_type": "work",
+        "completed": True,
+        "started_at": {"$gte": two_weeks_ago, "$lt": week_ago}
+    }, {"_id": 0}).to_list(500)
+    
+    prev_focus = sum(s.get("duration_seconds", 0) for s in prev_sessions) // 60
+    
+    # Calculate completion rate
+    total_created = await db.tasks.count_documents({
+        "created_at": {"$gte": week_ago}
+    })
+    completion_rate = round((len(completed_tasks) / max(total_created, 1)) * 100)
+    
+    # Daily breakdown
+    daily_breakdown = []
+    for i in range(7):
+        day = (today - timedelta(days=i)).isoformat()
+        day_next = (today - timedelta(days=i-1)).isoformat() if i > 0 else (today + timedelta(days=1)).isoformat()
+        
+        day_tasks = len([t for t in completed_tasks if t.get("completed_at", "").startswith(day)])
+        day_sessions = [s for s in sessions if s.get("started_at", "").startswith(day)]
+        day_focus = sum(s.get("duration_seconds", 0) for s in day_sessions) // 60
+        
+        daily_breakdown.append({
+            "date": day,
+            "tasks_done": day_tasks,
+            "focus_minutes": day_focus,
+            "pomodoros": len(day_sessions)
+        })
+    
+    daily_breakdown.reverse()
+    
+    # Category breakdown
+    category_breakdown = {}
+    for task in completed_tasks:
+        cat = task.get("category", "general")
+        mins = task.get("time_spent_seconds", 0) // 60
+        category_breakdown[cat] = category_breakdown.get(cat, 0) + max(mins, task.get("estimated_minutes", 25))
+    
+    # Get cached AI insights
+    insights = await db.weekly_insights.find_one({"week_start": week_ago}, {"_id": 0})
+    
+    return {
+        "period": f"{week_ago} to {today_str}",
+        "tasks_completed": len(completed_tasks),
+        "total_focus_minutes": total_focus,
+        "total_pomodoros": len(sessions),
+        "completion_rate": min(completion_rate, 100),
+        "daily_breakdown": daily_breakdown,
+        "category_breakdown": category_breakdown,
+        "previous_week": {
+            "tasks_completed": prev_completed,
+            "total_focus_minutes": prev_focus
+        },
+        "ai_insights": insights.get("insights") if insights else None
+    }
+
+@api_router.post("/report/generate-insights")
+async def generate_weekly_insights():
+    """Generate AI insights for weekly report"""
+    today = datetime.now(timezone.utc).date()
+    week_ago = (today - timedelta(days=7)).isoformat()
+    
+    # Get weekly data
+    completed_tasks = await db.tasks.find({
+        "completed": True,
+        "completed_at": {"$gte": week_ago}
+    }, {"_id": 0}).to_list(500)
+    
+    sessions = await db.pomodoro_sessions.find({
+        "session_type": "work",
+        "completed": True,
+        "started_at": {"$gte": week_ago}
+    }, {"_id": 0}).to_list(500)
+    
+    pending_tasks = await db.tasks.find({"completed": False}, {"_id": 0}).to_list(100)
+    
+    total_focus = sum(s.get("duration_seconds", 0) for s in sessions) // 60
+    
+    # Category stats
+    categories = {}
+    for t in completed_tasks:
+        cat = t.get("category", "general")
+        categories[cat] = categories.get(cat, 0) + 1
+    
+    if not EMERGENT_LLM_KEY:
+        # Fallback insights without AI
+        insights = {
+            "summary": f"This week you completed {len(completed_tasks)} tasks with {total_focus} minutes of focused work.",
+            "strengths": ["You're making progress on your tasks"],
+            "improvements": ["Try to maintain consistent daily focus time"],
+            "recommendation": "Keep up the momentum and prioritize high-impact tasks."
+        }
+    else:
+        try:
+            chat = LlmChat(
+                api_key=EMERGENT_LLM_KEY,
+                session_id=f"insights_{datetime.now().isoformat()}",
+                system_message="""You are a productivity coach analyzing weekly work patterns.
+Provide actionable, specific insights based on the data.
+Be encouraging but honest. Focus on patterns and actionable advice.
+
+Respond in JSON format:
+{
+    "summary": "2-3 sentence overview of the week",
+    "strengths": ["strength 1", "strength 2"],
+    "improvements": ["area 1", "area 2"],
+    "recommendation": "One specific actionable recommendation for next week"
+}"""
+            )
+            chat.with_model("openai", "gpt-5.2")
+            
+            data_summary = f"""
+Weekly productivity data:
+- Tasks completed: {len(completed_tasks)}
+- Total focus time: {total_focus} minutes
+- Pomodoro sessions: {len(sessions)}
+- Pending tasks: {len(pending_tasks)}
+- Categories worked on: {categories}
+- Average daily focus: {total_focus // 7} minutes
+
+Task details:
+{chr(10).join([f"- {t.get('title', 'Untitled')} ({t.get('category', 'general')})" for t in completed_tasks[:10]])}
+"""
+            
+            message = UserMessage(text=data_summary)
+            response = await chat.send_message(message)
+            
+            # Parse response
+            import json
+            try:
+                json_start = response.find('{')
+                json_end = response.rfind('}') + 1
+                if json_start != -1 and json_end > json_start:
+                    insights = json.loads(response[json_start:json_end])
+                else:
+                    raise ValueError("No JSON found")
+            except:
+                insights = {
+                    "summary": f"This week you completed {len(completed_tasks)} tasks with {total_focus} minutes of focused work across {len(sessions)} pomodoro sessions.",
+                    "strengths": ["Consistent task completion", "Using pomodoro technique effectively"],
+                    "improvements": ["Consider time-blocking for deep work", "Review pending tasks weekly"],
+                    "recommendation": "Focus on your top 3 priorities each morning before checking emails."
+                }
+        except Exception as e:
+            logger.error(f"AI insights error: {e}")
+            insights = {
+                "summary": f"This week you completed {len(completed_tasks)} tasks with {total_focus} minutes of focused work.",
+                "strengths": ["Making progress on your goals"],
+                "improvements": ["Maintain consistent daily focus sessions"],
+                "recommendation": "Start each day by reviewing your prioritized tasks."
+            }
+    
+    # Cache insights
+    await db.weekly_insights.update_one(
+        {"week_start": week_ago},
+        {"$set": {"week_start": week_ago, "insights": insights, "generated_at": datetime.now(timezone.utc).isoformat()}},
+        upsert=True
+    )
+    
+    return {"insights": insights}
+
 # Include router
 app.include_router(api_router)
 
