@@ -7,6 +7,7 @@ import Dashboard from "@/components/Dashboard";
 import AddTaskDialog from "@/components/AddTaskDialog";
 import SettingsDialog from "@/components/SettingsDialog";
 import WeeklyReportDialog from "@/components/WeeklyReportDialog";
+import GoogleIntegrationDialog from "@/components/GoogleIntegrationDialog";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -27,14 +28,42 @@ function App() {
     pomodoro_long_break: 15,
     daily_task_limit: 4,
     auto_rollover: true,
+    dark_mode: false,
+    google_calendar_connected: false,
+    gmail_connected: false,
+    google_email: null,
   });
   const [loading, setLoading] = useState(true);
   const [isPrioritizing, setIsPrioritizing] = useState(false);
   const [showAddTask, setShowAddTask] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showReport, setShowReport] = useState(false);
+  const [showGoogleIntegration, setShowGoogleIntegration] = useState(false);
   const [activeTask, setActiveTask] = useState(null);
   const [currentSession, setCurrentSession] = useState(null);
+
+  // Apply dark mode
+  useEffect(() => {
+    if (settings.dark_mode) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  }, [settings.dark_mode]);
+
+  // Check for Google OAuth callback
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("google_connected") === "true") {
+      toast.success("Google account connected successfully!");
+      window.history.replaceState({}, document.title, "/");
+      fetchSettings();
+    }
+    if (params.get("error")) {
+      toast.error(`Google connection failed: ${params.get("error")}`);
+      window.history.replaceState({}, document.title, "/");
+    }
+  }, []);
 
   // Fetch data
   const fetchTodayTasks = useCallback(async () => {
@@ -162,7 +191,6 @@ function App() {
       await axios.post(`${API}/pomodoro/complete?session_id=${currentSession.id}&duration_seconds=${durationSeconds}`);
       await fetchStats();
       
-      // Send browser notification
       if (Notification.permission === "granted") {
         new Notification("Pomodoro Complete!", {
           body: `Great work! Time for a break.`,
@@ -184,6 +212,16 @@ function App() {
     } catch (e) {
       toast.error("Failed to update settings");
       console.error(e);
+    }
+  };
+
+  const toggleDarkMode = async () => {
+    const newDarkMode = !settings.dark_mode;
+    try {
+      const response = await axios.put(`${API}/settings`, { dark_mode: newDarkMode });
+      setSettings(response.data);
+    } catch (e) {
+      console.error("Failed to toggle dark mode:", e);
     }
   };
 
@@ -218,6 +256,8 @@ function App() {
         }}
         onOpenSettings={() => setShowSettings(true)}
         onOpenReport={() => setShowReport(true)}
+        onOpenGoogleIntegration={() => setShowGoogleIntegration(true)}
+        onToggleDarkMode={toggleDarkMode}
       />
 
       <AddTaskDialog
@@ -231,6 +271,10 @@ function App() {
         onClose={() => setShowSettings(false)}
         settings={settings}
         onSave={updateSettings}
+        onOpenGoogleIntegration={() => {
+          setShowSettings(false);
+          setShowGoogleIntegration(true);
+        }}
       />
 
       <WeeklyReportDialog
@@ -238,12 +282,24 @@ function App() {
         onClose={() => setShowReport(false)}
       />
 
+      <GoogleIntegrationDialog
+        open={showGoogleIntegration}
+        onClose={() => setShowGoogleIntegration(false)}
+        settings={settings}
+        onRefresh={fetchSettings}
+        onTasksImported={() => {
+          fetchAllTasks();
+          fetchTodayTasks();
+        }}
+      />
+
       <Toaster 
         position="bottom-right" 
         toastOptions={{
           style: {
-            background: 'white',
-            border: '1px solid hsl(263 20% 90%)',
+            background: settings.dark_mode ? 'hsl(240 10% 10%)' : 'white',
+            color: settings.dark_mode ? 'hsl(0 0% 95%)' : 'inherit',
+            border: `1px solid ${settings.dark_mode ? 'hsl(240 5% 20%)' : 'hsl(263 20% 90%)'}`,
             borderRadius: '12px',
           },
         }}
