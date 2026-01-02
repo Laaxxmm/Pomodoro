@@ -376,6 +376,11 @@ def main():
     print(f"\n📊 Testing Statistics...")
     tester.test_get_stats()
 
+    # Test weekly report features
+    print(f"\n📈 Testing Weekly Report Features...")
+    tester.test_weekly_report()
+    tester.test_generate_insights()
+
     # Test task completion
     print(f"\n✅ Testing Task Completion...")
     if task2_id:
