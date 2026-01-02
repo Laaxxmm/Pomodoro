@@ -263,6 +263,42 @@ class TaskPrioritizerAPITester:
         )
         return success
 
+    def test_weekly_report(self):
+        """Test weekly report endpoint"""
+        success, response = self.run_test(
+            "Get Weekly Report",
+            "GET",
+            "report/weekly",
+            200
+        )
+        if success:
+            print(f"   Period: {response.get('period', 'N/A')}")
+            print(f"   Tasks completed: {response.get('tasks_completed', 0)}")
+            print(f"   Focus minutes: {response.get('total_focus_minutes', 0)}")
+            print(f"   Completion rate: {response.get('completion_rate', 0)}%")
+            daily_breakdown = response.get('daily_breakdown', [])
+            print(f"   Daily breakdown: {len(daily_breakdown)} days")
+        return success, response
+
+    def test_generate_insights(self):
+        """Test AI insights generation"""
+        print(f"\n🤖 Testing AI Insights Generation (this may take a few seconds)...")
+        success, response = self.run_test(
+            "Generate AI Insights",
+            "POST",
+            "report/generate-insights",
+            200
+        )
+        if success:
+            insights = response.get('insights', {})
+            print(f"   Summary: {insights.get('summary', 'N/A')[:100]}...")
+            strengths = insights.get('strengths', [])
+            improvements = insights.get('improvements', [])
+            print(f"   Strengths: {len(strengths)} items")
+            print(f"   Improvements: {len(improvements)} items")
+            print(f"   Recommendation: {insights.get('recommendation', 'N/A')[:100]}...")
+        return success
+
     def cleanup_created_tasks(self):
         """Clean up tasks created during testing"""
         print(f"\n🧹 Cleaning up {len(self.created_task_ids)} created tasks...")
