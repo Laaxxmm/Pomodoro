@@ -96,12 +96,16 @@
     animation: pulse-gold 2s ease-in-out infinite;
 }
 
-/* Glass morphism */
+/* Glass morphism - theme aware */
 .glass {
     @apply backdrop-blur-xl bg-white/80;
 }
 
-/* Custom scrollbar */
+.dark .glass {
+    @apply bg-gray-900/80;
+}
+
+/* Custom scrollbar - theme aware */
 ::-webkit-scrollbar {
     width: 6px;
 }
@@ -116,6 +120,14 @@
 
 ::-webkit-scrollbar-thumb:hover {
     @apply bg-violet-400/50;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+    @apply bg-violet-600/50;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+    @apply bg-violet-500/50;
 }
 
 /* Task card hover effects */
