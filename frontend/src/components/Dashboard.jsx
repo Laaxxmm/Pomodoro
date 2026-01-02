@@ -488,7 +488,7 @@ const Dashboard = ({
       </div>
 
       {/* Mobile Bottom Bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-lg border-t border-border/40 p-3 lg:hidden">
+      <div className="fixed bottom-0 left-0 right-0 z-[100] bg-white/95 backdrop-blur-lg border-t border-border/40 p-3 lg:hidden">
         <div className="flex items-center justify-around gap-2 max-w-md mx-auto">
           <Button
             onClick={onAddTask}
