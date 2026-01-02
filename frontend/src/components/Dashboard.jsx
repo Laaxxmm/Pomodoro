@@ -516,12 +516,12 @@ const Dashboard = ({
       </div>
 
       {/* Mobile Bottom Bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-[100] bg-white/95 backdrop-blur-lg border-t border-border/40 p-3 lg:hidden">
+      <div className="fixed bottom-0 left-0 right-0 z-[100] bg-background/95 backdrop-blur-lg border-t border-border/40 p-3 lg:hidden">
         <div className="flex items-center justify-around gap-2 max-w-md mx-auto">
           <Button
             onClick={onAddTask}
             size="sm"
-            className="btn-primary flex-1 max-w-[140px]"
+            className="btn-primary flex-1 max-w-[120px]"
             data-testid="mobile-bottom-add-btn"
           >
             <Plus className="h-4 w-4 mr-1" />
@@ -531,17 +531,26 @@ const Dashboard = ({
             onClick={onPrioritize}
             disabled={isPrioritizing || allTasks.length === 0}
             size="sm"
-            className="btn-gold flex-1 max-w-[140px]"
+            className="btn-gold flex-1 max-w-[120px]"
             data-testid="mobile-bottom-prioritize-btn"
           >
             <Sparkles className={`h-4 w-4 mr-1 ${isPrioritizing ? "animate-spin" : ""}`} />
             AI
           </Button>
           <Button
+            onClick={onOpenGoogleIntegration}
+            size="sm"
+            variant="outline"
+            className="rounded-full px-3"
+            data-testid="mobile-bottom-google-btn"
+          >
+            <Link2 className={`h-4 w-4 ${settings.google_calendar_connected ? "text-green-500" : ""}`} />
+          </Button>
+          <Button
             onClick={onOpenReport}
             size="sm"
             variant="outline"
-            className="rounded-full px-4"
+            className="rounded-full px-3"
             data-testid="mobile-bottom-report-btn"
           >
             <BarChart3 className="h-4 w-4" />
