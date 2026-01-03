@@ -125,7 +125,8 @@ function App() {
       await fetchAllTasks();
       setShowAddTask(false);
     } catch (e) {
-      toast.error("Failed to add task");
+      const errorMsg = e.response?.data?.detail || e.message;
+      toast.error(`Failed to add task: ${errorMsg}`);
       console.error(e);
     }
   };
@@ -140,7 +141,8 @@ function App() {
       }
       await Promise.all([fetchTodayTasks(), fetchAllTasks(), fetchStats()]);
     } catch (e) {
-      toast.error("Failed to complete task");
+      const errorMsg = e.response?.data?.detail || e.message;
+      toast.error(`Failed to complete task: ${errorMsg}`);
       console.error(e);
     }
   };
@@ -151,7 +153,8 @@ function App() {
       toast.success("Task deleted");
       await Promise.all([fetchTodayTasks(), fetchAllTasks(), fetchStats()]);
     } catch (e) {
-      toast.error("Failed to delete task");
+      const errorMsg = e.response?.data?.detail || e.message;
+      toast.error(`Failed to delete task: ${errorMsg}`);
       console.error(e);
     }
   };
@@ -164,7 +167,8 @@ function App() {
       setPrioritizationReason(response.data.reason || "");
       toast.success("Tasks prioritized by AI");
     } catch (e) {
-      toast.error("Failed to prioritize tasks");
+      const errorMsg = e.response?.data?.detail || e.message;
+      toast.error(`Failed to prioritize: ${errorMsg}`);
       console.error(e);
     } finally {
       setIsPrioritizing(false);
@@ -179,18 +183,19 @@ function App() {
       setCurrentSession(response.data);
       toast.success(`Starting work on: ${task.title}`);
     } catch (e) {
-      toast.error("Failed to start timer");
+      const errorMsg = e.response?.data?.detail || e.message;
+      toast.error(`Failed to start timer: ${errorMsg}`);
       console.error(e);
     }
   };
 
   const completePomodoro = async (durationSeconds) => {
     if (!currentSession) return;
-    
+
     try {
       await axios.post(`${API}/pomodoro/complete?session_id=${currentSession.id}&duration_seconds=${durationSeconds}`);
       await fetchStats();
-      
+
       if (Notification.permission === "granted") {
         new Notification("Pomodoro Complete!", {
           body: `Great work! Time for a break.`,
@@ -210,18 +215,24 @@ function App() {
       toast.success("Settings updated");
       setShowSettings(false);
     } catch (e) {
-      toast.error("Failed to update settings");
+      const errorMsg = e.response?.data?.detail || e.message;
+      toast.error(`Failed to update settings: ${errorMsg}`);
       console.error(e);
     }
   };
 
   const toggleDarkMode = async () => {
+    // Optimistically toggle locally first
     const newDarkMode = !settings.dark_mode;
+    setSettings(prev => ({ ...prev, dark_mode: newDarkMode }));
+
     try {
-      const response = await axios.put(`${API}/settings`, { dark_mode: newDarkMode });
-      setSettings(response.data);
+      await axios.put(`${API}/settings`, { dark_mode: newDarkMode });
     } catch (e) {
+      const errorMsg = e.response?.data?.detail || e.message;
+      toast.error(`Failed to save dark mode: ${errorMsg}`);
       console.error("Failed to toggle dark mode:", e);
+      // Revert if failed? No, keep local state for better UX, but warn.
     }
   };
 
@@ -293,8 +304,8 @@ function App() {
         }}
       />
 
-      <Toaster 
-        position="bottom-right" 
+      <Toaster
+        position="bottom-right"
         toastOptions={{
           style: {
             background: settings.dark_mode ? 'hsl(240 10% 10%)' : 'white',
