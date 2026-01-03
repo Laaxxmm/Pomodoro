@@ -85,7 +85,36 @@ class Task(BaseModel):
     recurrence_interval: int = 1
     recurrence_days: List[str] = []
 
-# ... (DailyPlan, PomodoroSession, Settings remain same) ...
+class DailyPlan(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    date: str
+    task_ids: List[str] = []
+    prioritization_reason: str = ""
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+class PomodoroSession(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    task_id: str
+    started_at: str
+    ended_at: Optional[str] = None
+    duration_seconds: int = 0
+    session_type: str = "work"
+    completed: bool = False
+
+class Settings(BaseModel):
+    id: str = "user_settings"
+    pomodoro_work_minutes: int = 25
+    pomodoro_short_break: int = 5
+    pomodoro_long_break: int = 15
+    daily_task_limit: int = 4
+    auto_rollover: bool = True
+    google_calendar_connected: bool = False
+    gmail_connected: bool = False
+    google_access_token: Optional[str] = None
+    google_refresh_token: Optional[str] = None
+    google_token_expiry: Optional[str] = None
+    google_email: Optional[str] = None
+    dark_mode: bool = False
 
 @api_router.post("/tasks", response_model=Task)
 def create_task(task_input: TaskCreate):
