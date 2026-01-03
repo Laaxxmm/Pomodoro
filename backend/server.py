@@ -1062,9 +1062,11 @@ async def prioritize_today():
         # Upsert daily plan
         supabase.table("daily_plans").upsert(plan.model_dump(), on_conflict="date").execute()
         
-        # Fetch sorted tasks
-        tasks_resp = supabase.table("tasks").select("*").in_("id", selected_ids).eq("completed", False).execute()
-        tasks = tasks_resp.data
+        # Robustness: Filter tasks from the copy we already have in memory
+        # This avoids issues with Supabase 'in_' query syntax or read consistency
+        tasks = [t for t in all_tasks if t['id'] in selected_ids]
+        
+        # Sort by priority score
         tasks.sort(key=lambda x: -x.get("priority_score", 0))
         
         return {
