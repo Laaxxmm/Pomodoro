@@ -615,6 +615,21 @@ Only include clear action items. If no tasks found, return empty tasks array.
         logger.error(f"Email extraction error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+# ============ DEBUG ROUTES ============
+
+@api_router.get("/debug")
+def debug_status():
+    """Check environment and DB status"""
+    import os
+    return {
+        "status": "online",
+        "supabase_url_set": bool(os.environ.get("SUPABASE_URL")),
+        "supabase_key_set": bool(os.environ.get("SUPABASE_KEY")),
+        "gemini_key_set": bool(os.environ.get("GEMINI_API_KEY")),
+        "db_connected": bool(supabase),
+        "env_vars_keys": list(os.environ.keys())
+    }
+
 # ============ TASK ROUTES ============
 
 @api_router.get("/")
