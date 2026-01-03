@@ -1,0 +1,175 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    :root {
+        --background: 0 0% 98%;
+        --foreground: 240 10% 4%;
+        --card: 0 0% 100%;
+        --card-foreground: 240 10% 4%;
+        --popover: 0 0% 100%;
+        --popover-foreground: 240 10% 4%;
+        --primary: 263 70% 58%;
+        --primary-foreground: 0 0% 100%;
+        --secondary: 37 91% 55%;
+        --secondary-foreground: 0 0% 100%;
+        --muted: 240 5% 96%;
+        --muted-foreground: 240 4% 46%;
+        --accent: 263 70% 96%;
+        --accent-foreground: 263 70% 40%;
+        --destructive: 0 84% 60%;
+        --destructive-foreground: 0 0% 98%;
+        --border: 263 20% 90%;
+        --input: 240 6% 90%;
+        --ring: 263 70% 58%;
+        --chart-1: 263 70% 58%;
+        --chart-2: 37 91% 55%;
+        --chart-3: 197 37% 24%;
+        --chart-4: 43 74% 66%;
+        --chart-5: 27 87% 67%;
+        --radius: 0.75rem;
+    }
+
+    .dark {
+        --background: 240 10% 6%;
+        --foreground: 0 0% 95%;
+        --card: 240 10% 10%;
+        --card-foreground: 0 0% 95%;
+        --popover: 240 10% 10%;
+        --popover-foreground: 0 0% 95%;
+        --primary: 263 70% 60%;
+        --primary-foreground: 0 0% 100%;
+        --secondary: 37 91% 50%;
+        --secondary-foreground: 0 0% 100%;
+        --muted: 240 5% 18%;
+        --muted-foreground: 240 5% 65%;
+        --accent: 263 50% 20%;
+        --accent-foreground: 263 70% 80%;
+        --destructive: 0 62% 50%;
+        --destructive-foreground: 0 0% 98%;
+        --border: 240 5% 20%;
+        --input: 240 5% 20%;
+        --ring: 263 70% 60%;
+    }
+}
+
+@layer base {
+    * {
+        @apply border-border;
+    }
+    body {
+        @apply bg-background text-foreground;
+        font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    h1, h2, h3, h4, h5, h6 {
+        font-family: 'Outfit', sans-serif;
+    }
+    .font-mono {
+        font-family: 'JetBrains Mono', monospace;
+    }
+}
+
+/* Premium subtle animations */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse-gold {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(217, 119, 6, 0.4); }
+    50% { box-shadow: 0 0 20px 10px rgba(217, 119, 6, 0.1); }
+}
+
+@keyframes progress-ring {
+    0% { stroke-dashoffset: 283; }
+    100% { stroke-dashoffset: 0; }
+}
+
+.animate-fade-in {
+    animation: fadeIn 0.4s ease-out forwards;
+}
+
+.animate-pulse-gold {
+    animation: pulse-gold 2s ease-in-out infinite;
+}
+
+/* Glass morphism - theme aware */
+.glass {
+    @apply backdrop-blur-xl bg-white/80;
+}
+
+.dark .glass {
+    @apply bg-gray-900/80;
+}
+
+/* Custom scrollbar - theme aware */
+::-webkit-scrollbar {
+    width: 6px;
+}
+
+::-webkit-scrollbar-track {
+    @apply bg-muted/30 rounded-full;
+}
+
+::-webkit-scrollbar-thumb {
+    @apply bg-violet-300/50 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    @apply bg-violet-400/50;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+    @apply bg-violet-600/50;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+    @apply bg-violet-500/50;
+}
+
+/* Task card hover effects */
+.task-card {
+    @apply transition-all duration-300 ease-out;
+}
+
+.task-card:hover {
+    @apply shadow-lg shadow-violet-500/10 -translate-y-0.5;
+}
+
+/* Pomodoro timer styles */
+.timer-ring {
+    transform: rotate(-90deg);
+    transform-origin: center;
+}
+
+.timer-ring-progress {
+    transition: stroke-dashoffset 1s linear;
+}
+
+/* Priority badges */
+.priority-high {
+    @apply bg-amber-100 text-amber-700 border-amber-200;
+}
+
+.priority-medium {
+    @apply bg-violet-100 text-violet-700 border-violet-200;
+}
+
+.priority-low {
+    @apply bg-slate-100 text-slate-600 border-slate-200;
+}
+
+/* Focus mode overlay */
+.focus-mode {
+    @apply fixed inset-0 bg-background/95 backdrop-blur-sm z-50;
+}
+
+/* Debug wrapper fix */
+@layer base {
+    [data-debug-wrapper="true"] {
+        display: contents !important;
+    }
+}

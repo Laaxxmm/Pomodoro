@@ -1,0 +1,127 @@
+/* FocusFlow App Styles */
+
+/* Main layout */
+.app-container {
+    @apply min-h-screen bg-background;
+}
+
+/* Bento grid layout */
+.bento-grid {
+    display: grid;
+    grid-template-columns: 280px 1fr 320px;
+    gap: 1.5rem;
+    min-height: calc(100vh - 4rem);
+}
+
+@media (max-width: 1400px) {
+    .bento-grid {
+        grid-template-columns: 260px 1fr 300px;
+        gap: 1rem;
+    }
+}
+
+@media (max-width: 1200px) {
+    .bento-grid {
+        grid-template-columns: 1fr 320px;
+        gap: 1rem;
+    }
+    .bento-grid > aside:first-child {
+        display: none;
+    }
+}
+
+@media (max-width: 900px) {
+    .bento-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    .bento-grid > aside:last-child {
+        order: -1;
+    }
+}
+
+/* Mobile sidebar overlay */
+.mobile-sidebar {
+    @apply fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-lg border-t border-border/40 p-4;
+}
+
+.mobile-stats {
+    @apply flex items-center justify-around gap-4;
+}
+
+/* Sidebar styles */
+.sidebar {
+    @apply sticky top-6 h-fit;
+}
+
+@media (max-width: 1200px) {
+    .sidebar {
+        position: static;
+    }
+}
+
+/* Task list animations */
+.task-enter {
+    opacity: 0;
+    transform: translateX(-20px);
+}
+
+.task-enter-active {
+    opacity: 1;
+    transform: translateX(0);
+    transition: all 0.3s ease-out;
+}
+
+/* Timer display */
+.timer-display {
+    font-family: 'JetBrains Mono', monospace;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Gold glow for AI processing */
+.ai-thinking {
+    animation: pulse-gold 1.5s ease-in-out infinite;
+}
+
+/* Button hover states */
+.btn-primary {
+    @apply bg-violet-600 hover:bg-violet-700 text-white rounded-full px-8 py-3 font-medium 
+           shadow-lg shadow-violet-500/20 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98];
+}
+
+.btn-secondary {
+    @apply bg-white text-violet-900 border border-violet-100 hover:bg-violet-50 
+           rounded-full px-6 py-3 font-medium transition-all duration-200;
+}
+
+.btn-gold {
+    @apply bg-amber-500 hover:bg-amber-600 text-white rounded-full px-6 py-3 font-medium
+           shadow-lg shadow-amber-500/20 transition-all duration-200;
+}
+
+/* Input styles */
+.input-minimal {
+    @apply bg-transparent border-b-2 border-border focus:border-violet-500 
+           rounded-none px-0 py-4 text-lg focus:ring-0 transition-colors 
+           placeholder:text-muted-foreground/50 outline-none w-full;
+}
+
+/* Card styles */
+.card-premium {
+    @apply bg-card rounded-2xl border border-border/40 shadow-sm 
+           hover:shadow-md transition-all duration-300;
+}
+
+/* Stats card */
+.stat-card {
+    @apply bg-gradient-to-br from-violet-50 to-white rounded-xl p-4 border border-violet-100/50;
+}
+
+/* Empty state */
+.empty-state {
+    @apply flex flex-col items-center justify-center py-16 text-center;
+}
+
+.empty-state-icon {
+    @apply w-16 h-16 text-muted-foreground/30 mb-4;
+}
