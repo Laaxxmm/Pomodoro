@@ -30,8 +30,12 @@ const AddTaskDialog = ({ open, onClose, onAdd }) => {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [deadline, setDeadline] = useState(null);
+  const [deadlineTime, setDeadlineTime] = useState("");
   const [estimatedMinutes, setEstimatedMinutes] = useState(25);
   const [category, setCategory] = useState("general");
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [recurrenceType, setRecurrenceType] = useState("daily");
+  const [recurrenceInterval, setRecurrenceInterval] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e) => {
@@ -43,9 +47,13 @@ const AddTaskDialog = ({ open, onClose, onAdd }) => {
       title: title.trim(),
       description: description.trim(),
       deadline: deadline ? format(deadline, "yyyy-MM-dd") : null,
+      deadline_time: deadlineTime || null,
       estimated_minutes: estimatedMinutes,
       category,
       source: "manual",
+      is_recurring: isRecurring,
+      recurrence_type: isRecurring ? recurrenceType : null,
+      recurrence_interval: recurrenceInterval
     });
     setIsSubmitting(false);
 
@@ -53,8 +61,12 @@ const AddTaskDialog = ({ open, onClose, onAdd }) => {
     setTitle("");
     setDescription("");
     setDeadline(null);
+    setDeadlineTime("");
     setEstimatedMinutes(25);
     setCategory("general");
+    setIsRecurring(false);
+    setRecurrenceType("daily");
+    setRecurrenceInterval(1);
   };
 
   const categories = [
@@ -164,38 +176,91 @@ const AddTaskDialog = ({ open, onClose, onAdd }) => {
             </div>
           </div>
 
-          {/* Deadline */}
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">Deadline (optional)</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className="w-full justify-start text-left font-normal rounded-xl border-border/40"
-                  data-testid="deadline-picker"
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {deadline ? (
-                    format(deadline, "PPP")
-                  ) : (
-                    <span className="text-muted-foreground">Pick a date</span>
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={deadline}
-                  onSelect={setDeadline}
-                  initialFocus
-                  disabled={(date) => {
-                    const today = new Date();
-                    today.setHours(0, 0, 0, 0);
-                    return date < today;
-                  }}
-                />
-              </PopoverContent>
-            </Popover>
+          {/* Deadline and Time */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Deadline Date</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start text-left font-normal rounded-xl border-border/40"
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {deadline ? (
+                      format(deadline, "PPP")
+                    ) : (
+                      <span className="text-muted-foreground">Pick a date</span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={deadline}
+                    onSelect={setDeadline}
+                    initialFocus
+                    disabled={(date) => {
+                      const today = new Date();
+                      today.setHours(0, 0, 0, 0);
+                      return date < today;
+                    }}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Time (Optional)</Label>
+              <Input
+                type="time"
+                value={deadlineTime}
+                onChange={(e) => setDeadlineTime(e.target.value)}
+                className="rounded-xl border-border/40"
+              />
+            </div>
+          </div>
+
+          {/* Recurrence */}
+          <div className="space-y-4 pt-2 border-t border-border/20">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="recurring"
+                checked={isRecurring}
+                onChange={(e) => setIsRecurring(e.target.checked)}
+                className="rounded border-gray-300 text-violet-600 focus:ring-violet-500"
+              />
+              <Label htmlFor="recurring" className="text-sm cursor-pointer">Make this a recurring task</Label>
+            </div>
+
+            {isRecurring && (
+              <div className="grid grid-cols-2 gap-4 animate-fade-in">
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Repeats</Label>
+                  <Select value={recurrenceType} onValueChange={setRecurrenceType}>
+                    <SelectTrigger className="h-9 rounded-lg">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="daily">Daily</SelectItem>
+                      <SelectItem value="weekly">Weekly</SelectItem>
+                      <SelectItem value="monthly">Monthly</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Every (x) {recurrenceType === 'daily' ? 'days' : recurrenceType === 'weekly' ? 'weeks' : 'months'}</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    value={recurrenceInterval}
+                    onChange={(e) => setRecurrenceInterval(parseInt(e.target.value))}
+                    className="h-9 rounded-lg"
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Actions */}

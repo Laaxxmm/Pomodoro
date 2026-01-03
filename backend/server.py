@@ -52,15 +52,21 @@ class TaskCreate(BaseModel):
     title: str
     description: Optional[str] = ""
     deadline: Optional[str] = None
+    deadline_time: Optional[str] = None
     estimated_minutes: Optional[int] = 25
     category: Optional[str] = "general"
     source: str = "manual"
+    is_recurring: bool = False
+    recurrence_type: Optional[str] = None
+    recurrence_interval: int = 1
+    recurrence_days: List[str] = []
 
 class Task(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     title: str
     description: str = ""
     deadline: Optional[str] = None
+    deadline_time: Optional[str] = None
     estimated_minutes: int = 25
     category: str = "general"
     source: str = "manual"
@@ -74,8 +80,99 @@ class Task(BaseModel):
     scheduled_date: str = Field(default_factory=lambda: datetime.now(timezone.utc).date().isoformat())
     rollover_count: int = 0
     source_id: Optional[str] = None
+    is_recurring: bool = False
+    recurrence_type: Optional[str] = None
+    recurrence_interval: int = 1
+    recurrence_days: List[str] = []
 
-class DailyPlan(BaseModel):
+# ... (DailyPlan, PomodoroSession, Settings remain same) ...
+
+@api_router.post("/tasks", response_model=Task)
+def create_task(task_input: TaskCreate):
+    """Create a new task"""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Database not connected")
+
+    task = Task(
+        title=task_input.title,
+        description=task_input.description or "",
+        deadline=task_input.deadline,
+        deadline_time=task_input.deadline_time,
+        estimated_minutes=task_input.estimated_minutes or 25,
+        category=task_input.category or "general",
+        source=task_input.source,
+        is_recurring=task_input.is_recurring,
+        recurrence_type=task_input.recurrence_type,
+        recurrence_interval=task_input.recurrence_interval,
+        recurrence_days=task_input.recurrence_days
+    )
+    
+    try:
+        response = supabase.table("tasks").insert(task.model_dump()).execute()
+        if response.data:
+            return response.data[0]
+        raise HTTPException(status_code=500, detail="Failed to create task")
+    except Exception as e:
+        logger.error(f"Create task error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ... (get_tasks, get_task, update_task, delete_task remain similar) ...
+
+@api_router.put("/tasks/{task_id}/complete")
+def complete_task(task_id: str, time_spent_seconds: int = 0):
+    """Mark a task as completed and handle recurrence"""
+    try:
+        # First get the task to check for recurrence
+        existing_resp = supabase.table("tasks").select("*").eq("id", task_id).execute()
+        if not existing_resp.data:
+            raise HTTPException(status_code=404, detail="Task not found")
+        
+        task_data = existing_resp.data[0]
+        
+        # Mark current as completed
+        update_data = {
+            "completed": True,
+            "completed_at": datetime.now(timezone.utc).isoformat(),
+            "time_spent_seconds": time_spent_seconds
+        }
+        supabase.table("tasks").update(update_data).eq("id", task_id).execute()
+        
+        # Handle Recurrence
+        if task_data.get("is_recurring") and task_data.get("recurrence_type"):
+            today = datetime.now(timezone.utc).date()
+            next_date = None
+            
+            rtype = task_data["recurrence_type"]
+            interval = task_data.get("recurrence_interval", 1)
+            
+            if rtype == "daily":
+                next_date = today + timedelta(days=interval)
+            elif rtype == "weekly":
+                next_date = today + timedelta(weeks=interval)
+            elif rtype == "monthly":
+                # Simple monthly (add 30 days roughly or use dateutil if strictly needed, keeping simple)
+                next_date = today + timedelta(days=30 * interval)
+            
+            if next_date:
+                new_task = Task(
+                    title=task_data["title"],
+                    description=task_data["description"],
+                    deadline=next_date.isoformat(), # Assuming deadline moves with recurrence
+                    deadline_time=task_data.get("deadline_time"),
+                    estimated_minutes=task_data["estimated_minutes"],
+                    category=task_data["category"],
+                    source="recurring",
+                    is_recurring=True,
+                    recurrence_type=task_data["recurrence_type"],
+                    recurrence_interval=task_data["recurrence_interval"],
+                    recurrence_days=task_data.get("recurrence_days", []),
+                    scheduled_date=next_date.isoformat()
+                )
+                supabase.table("tasks").insert(new_task.model_dump()).execute()
+        
+        return {"success": True}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     date: str
     task_ids: List[str] = []
@@ -708,9 +805,14 @@ def create_task(task_input: TaskCreate):
         title=task_input.title,
         description=task_input.description or "",
         deadline=task_input.deadline,
+        deadline_time=task_input.deadline_time,
         estimated_minutes=task_input.estimated_minutes or 25,
         category=task_input.category or "general",
-        source=task_input.source
+        source=task_input.source,
+        is_recurring=task_input.is_recurring,
+        recurrence_type=task_input.recurrence_type,
+        recurrence_interval=task_input.recurrence_interval,
+        recurrence_days=task_input.recurrence_days
     )
     
     try:
@@ -760,7 +862,7 @@ def get_task(task_id: str):
 @api_router.put("/tasks/{task_id}")
 def update_task(task_id: str, updates: dict):
     """Update a task"""
-    allowed_fields = ["title", "description", "deadline", "estimated_minutes", "category", "priority_score"]
+    allowed_fields = ["title", "description", "deadline", "estimated_minutes", "category", "priority_score", "deadline_time", "is_recurring", "recurrence_type"]
     update_data = {k: v for k, v in updates.items() if k in allowed_fields}
     
     try:
@@ -785,16 +887,55 @@ def delete_task(task_id: str):
 
 @api_router.put("/tasks/{task_id}/complete")
 def complete_task(task_id: str, time_spent_seconds: int = 0):
-    """Mark a task as completed"""
+    """Mark a task as completed and handle recurrence"""
     try:
+        # First get the task to check for recurrence
+        existing_resp = supabase.table("tasks").select("*").eq("id", task_id).execute()
+        if not existing_resp.data:
+            raise HTTPException(status_code=404, detail="Task not found")
+        
+        task_data = existing_resp.data[0]
+        
+        # Mark current as completed
         update_data = {
             "completed": True,
             "completed_at": datetime.now(timezone.utc).isoformat(),
             "time_spent_seconds": time_spent_seconds
         }
-        response = supabase.table("tasks").update(update_data).eq("id", task_id).execute()
-        if not response.data:
-            raise HTTPException(status_code=404, detail="Task not found")
+        supabase.table("tasks").update(update_data).eq("id", task_id).execute()
+        
+        # Handle Recurrence
+        if task_data.get("is_recurring") and task_data.get("recurrence_type"):
+            today = datetime.now(timezone.utc).date()
+            next_date = None
+            
+            rtype = task_data["recurrence_type"]
+            interval = task_data.get("recurrence_interval", 1)
+            
+            if rtype == "daily":
+                next_date = today + timedelta(days=interval)
+            elif rtype == "weekly":
+                next_date = today + timedelta(weeks=interval)
+            elif rtype == "monthly":
+                next_date = today + timedelta(days=30 * interval)
+            
+            if next_date:
+                new_task = Task(
+                    title=task_data["title"],
+                    description=task_data["description"],
+                    deadline=next_date.isoformat(),
+                    deadline_time=task_data.get("deadline_time"),
+                    estimated_minutes=task_data["estimated_minutes"],
+                    category=task_data["category"],
+                    source="recurring",
+                    is_recurring=True,
+                    recurrence_type=task_data["recurrence_type"],
+                    recurrence_interval=task_data["recurrence_interval"],
+                    recurrence_days=task_data.get("recurrence_days", []),
+                    scheduled_date=next_date.isoformat()
+                )
+                supabase.table("tasks").insert(new_task.model_dump()).execute()
+        
         return {"success": True}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
