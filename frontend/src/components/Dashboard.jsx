@@ -22,6 +22,7 @@ import {
   Link2,
 } from "lucide-react";
 import PomodoroTimer from "./PomodoroTimer";
+import TicTacToeReward from "./TicTacToeReward";
 
 const Dashboard = ({
   todayTasks,
@@ -46,6 +47,14 @@ const Dashboard = ({
   onToggleDarkMode,
 }) => {
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [showReward, setShowReward] = useState(false);
+  const [rewardTaskName, setRewardTaskName] = useState("");
+
+  const handleTaskCompletion = (task) => {
+    onCompleteTask(task.id, task.time_spent_seconds);
+    setRewardTaskName(task.title);
+    setShowReward(true);
+  };
 
   const formatDate = () => {
     return new Date().toLocaleDateString("en-US", {
@@ -422,9 +431,7 @@ const Dashboard = ({
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() =>
-                                  onCompleteTask(task.id, task.time_spent_seconds)
-                                }
+                                onClick={() => handleTaskCompletion(task)}
                                 className="text-xs"
                                 data-testid={`complete-task-${task.id}`}
                               >
@@ -561,6 +568,12 @@ const Dashboard = ({
       <div className="hidden lg:block fixed bottom-4 right-8 text-xs text-muted-foreground/40 font-mono">
         © 2026 Pomodoro-Indefine
       </div>
+      {/* Reward Dialog */}
+      <TicTacToeReward
+        isOpen={showReward}
+        onClose={() => setShowReward(false)}
+        taskName={rewardTaskName}
+      />
     </div>
   );
 };

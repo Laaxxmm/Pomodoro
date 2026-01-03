@@ -109,6 +109,10 @@ const PomodoroTimer = ({
       setTotalTimeSpent((prev) => prev + duration);
       onComplete(duration);
 
+      // Play alarm sound
+      const audio = new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
+      audio.play().catch(e => console.error("Audio play failed", e));
+
       // Send notification
       if (Notification.permission === "granted") {
         new Notification("Pomodoro Complete!", {
