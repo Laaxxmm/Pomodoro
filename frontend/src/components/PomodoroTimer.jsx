@@ -18,6 +18,7 @@ const PomodoroTimer = ({
   const [totalTimeSpent, setTotalTimeSpent] = useState(0);
   const intervalRef = useRef(null);
   const startTimeRef = useRef(null);
+  const targetTimeRef = useRef(null);
 
   const getSessionDuration = useCallback(
     (type) => {
@@ -41,17 +42,22 @@ const PomodoroTimer = ({
 
   // Reset timer when task changes
   useEffect(() => {
-    setTimeLeft(getSessionDuration("work"));
+    const duration = getSessionDuration("work");
+    setTimeLeft(duration);
 
     // Auto-start if a task is selected
     const shouldStart = !!activeTask;
     setIsRunning(shouldStart);
-    if (shouldStart) {
-      startTimeRef.current = Date.now();
-    }
-
     setSessionType("work");
     setTotalTimeSpent(0);
+
+    if (shouldStart) {
+      startTimeRef.current = Date.now();
+      targetTimeRef.current = Date.now() + duration * 1000;
+    } else {
+      targetTimeRef.current = null;
+    }
+
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
     }
@@ -59,16 +65,28 @@ const PomodoroTimer = ({
 
   // Timer logic
   useEffect(() => {
-    if (isRunning && timeLeft > 0) {
+    if (isRunning) {
+      // If we just started/resumed and have no target, set it based on current timeLeft
+      if (!targetTimeRef.current) {
+        targetTimeRef.current = Date.now() + timeLeft * 1000;
+      }
+
       intervalRef.current = setInterval(() => {
-        setTimeLeft((prev) => {
-          if (prev <= 1) {
-            handleTimerComplete();
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
+        const now = Date.now();
+        const difference = targetTimeRef.current - now;
+
+        if (difference <= 0) {
+          setTimeLeft(0);
+          handleTimerComplete();
+        } else {
+          setTimeLeft(Math.ceil(difference / 1000));
+        }
+      }, 500); // Check frequently
+    } else {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+      targetTimeRef.current = null;
     }
 
     return () => {
@@ -80,6 +98,7 @@ const PomodoroTimer = ({
 
   const handleTimerComplete = () => {
     setIsRunning(false);
+    targetTimeRef.current = null;
 
     // Calculate duration
     const duration = getSessionDuration(sessionType);
@@ -101,7 +120,8 @@ const PomodoroTimer = ({
       // Switch to break
       const nextType = newCount % 4 === 0 ? "long_break" : "short_break";
       setSessionType(nextType);
-      setTimeLeft(getSessionDuration(nextType));
+      const nextDuration = getSessionDuration(nextType);
+      setTimeLeft(nextDuration);
     } else {
       // Break complete
       if (Notification.permission === "granted") {
@@ -118,12 +138,14 @@ const PomodoroTimer = ({
   const toggleTimer = () => {
     if (!isRunning) {
       startTimeRef.current = Date.now();
+      targetTimeRef.current = Date.now() + timeLeft * 1000;
     }
     setIsRunning(!isRunning);
   };
 
   const resetTimer = () => {
     setIsRunning(false);
+    targetTimeRef.current = null;
     setTimeLeft(getSessionDuration(sessionType));
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
@@ -132,6 +154,7 @@ const PomodoroTimer = ({
 
   const switchSession = (type) => {
     setIsRunning(false);
+    targetTimeRef.current = null;
     setSessionType(type);
     setTimeLeft(getSessionDuration(type));
   };
