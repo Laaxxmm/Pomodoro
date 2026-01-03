@@ -849,7 +849,7 @@ def get_stats():
         pending_tasks = len(pending_resp.data)
         
         # Pomodoro stats
-        pomo_resp = supabase.table("pomodoro_sessions").select("duration_seconds").gte("started_at", today_iso).execute()
+        pomo_resp = supabase.table("pomodoro_sessions").select("duration_seconds").eq("completed", True).gte("started_at", today_iso).execute()
         
         total_seconds = sum([s.get("duration_seconds", 0) for s in pomo_resp.data])
         focus_minutes_today = total_seconds // 60
