@@ -289,7 +289,6 @@ async def prioritize_tasks_with_ai(tasks: List[dict]) -> dict:
         }
     
     try:
-    try:
         model = genai.GenerativeModel('gemini-2.0-flash-exp')
         
         task_list = "\n".join([
