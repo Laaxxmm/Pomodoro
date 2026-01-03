@@ -23,6 +23,10 @@ const PomodoroTimer = ({
     (type) => {
       switch (type) {
         case "work":
+          // Use task specific time if available, otherwise default to settings
+          if (activeTask?.estimated_minutes) {
+            return activeTask.estimated_minutes * 60;
+          }
           return settings.pomodoro_work_minutes * 60;
         case "short_break":
           return settings.pomodoro_short_break * 60;
@@ -32,7 +36,7 @@ const PomodoroTimer = ({
           return settings.pomodoro_work_minutes * 60;
       }
     },
-    [settings]
+    [settings, activeTask]
   );
 
   // Reset timer when task changes
@@ -252,8 +256,8 @@ const PomodoroTimer = ({
             size="lg"
             onClick={toggleTimer}
             className={`rounded-full w-16 h-16 ${sessionType === "work"
-                ? "bg-amber-500 hover:bg-amber-600"
-                : "bg-violet-500 hover:bg-violet-600"
+              ? "bg-amber-500 hover:bg-amber-600"
+              : "bg-violet-500 hover:bg-violet-600"
               }`}
             disabled={!activeTask && sessionType === "work"}
             data-testid="play-pause-btn"
