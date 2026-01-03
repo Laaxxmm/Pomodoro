@@ -289,6 +289,7 @@ async def prioritize_tasks_with_ai(tasks: List[dict]) -> dict:
         }
     
     try:
+    try:
         model = genai.GenerativeModel('gemini-2.0-flash-exp')
         
         task_list = "\n".join([
@@ -321,6 +322,7 @@ Respond in JSON format:
         "id2": {{"score": 85, "reason": "High revenue impact"}}
     }}
 }}
+IMPORTANT: You MUST return the exact IDs provided in the list. Do not use titles or make up IDs.
 """
         response = model.generate_content(prompt)
         
@@ -333,7 +335,33 @@ Respond in JSON format:
                 text = text.split("```")[1].split("```")[0]
                 
             result = json.loads(text)
+            
+            # --- VALIDATION & RECOVERY LOGIC ---
+            valid_ids = {t["id"] for t in tasks}
+            task_map_by_title = {t["title"].lower().strip(): t["id"] for t in tasks}
+            
+            cleaned_ids = []
+            for raw_id in result.get("selected_task_ids", []):
+                # 1. Check if ID is valid
+                if raw_id in valid_ids:
+                    cleaned_ids.append(raw_id)
+                    continue
+                
+                # 2. Check if it's a title (fallback)
+                potential_title = raw_id.lower().strip()
+                if potential_title in task_map_by_title:
+                    cleaned_ids.append(task_map_by_title[potential_title])
+            
+            # If AI failed completely to give valid IDs, fallback
+            if not cleaned_ids:
+                logger.warning("AI returned no valid IDs, falling back to heuristic sort")
+                sorted_tasks = sorted(tasks, key=lambda x: (-x.get('rollover_count', 0), x.get('deadline') or '9999-12-31'))
+                cleaned_ids = [t['id'] for t in sorted_tasks[:4]]
+                result["reason"] += " (Auto-corrected: specific IDs were missing)"
+            
+            result["selected_task_ids"] = cleaned_ids
             return result
+            
         except json.JSONDecodeError:
             try:
                 # Try finding first { and last }
@@ -341,7 +369,21 @@ Respond in JSON format:
                 json_end = response.text.rfind('}') + 1
                 if json_start != -1:
                     result = json.loads(response.text[json_start:json_end])
-                    return result
+                    # Re-run validation logic on second try (duplicated for safety or extract to func)
+                    # For simplicity, just return result and hope, or copy-paste validation?
+                    # Let's copy-paste validation for robustness
+                    valid_ids = {t["id"] for t in tasks}
+                    task_map_by_title = {t["title"].lower().strip(): t["id"] for t in tasks}
+                    cleaned_ids = []
+                    for raw_id in result.get("selected_task_ids", []):
+                        if raw_id in valid_ids:
+                            cleaned_ids.append(raw_id)
+                        elif raw_id.lower().strip() in task_map_by_title:
+                            cleaned_ids.append(task_map_by_title[raw_id.lower().strip()])
+                    
+                    if cleaned_ids: 
+                         result["selected_task_ids"] = cleaned_ids
+                         return result
             except:
                 pass
         
