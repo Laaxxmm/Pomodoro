@@ -9,8 +9,8 @@ import SettingsDialog from "@/components/SettingsDialog";
 import WeeklyReportDialog from "@/components/WeeklyReportDialog";
 import GoogleIntegrationDialog from "@/components/GoogleIntegrationDialog";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "";
+const API = BACKEND_URL ? `${BACKEND_URL}/api` : "/api";
 
 function App() {
   const [tasks, setTasks] = useState([]);

@@ -88,7 +88,7 @@ const Dashboard = ({
       <header className="flex items-center justify-between mb-6 md:mb-8">
         <div>
           <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold tracking-tight text-foreground font-heading">
-            FocusFlow
+            Pomodoro
           </h1>
           <p className="text-sm md:text-base text-muted-foreground mt-1">{formatDate()}</p>
         </div>
@@ -361,11 +361,10 @@ const Dashboard = ({
                     return (
                       <div
                         key={task.id}
-                        className={`task-card p-3 md:p-4 rounded-xl border transition-all animate-fade-in ${
-                          isActive
+                        className={`task-card p-3 md:p-4 rounded-xl border transition-all animate-fade-in ${isActive
                             ? "ring-2 ring-violet-500/30 border-violet-300 bg-violet-50/50"
                             : "border-border/40 bg-card hover:bg-muted/30"
-                        }`}
+                          }`}
                         style={{ animationDelay: `${index * 100}ms` }}
                         data-testid={`task-card-${task.id}`}
                       >
