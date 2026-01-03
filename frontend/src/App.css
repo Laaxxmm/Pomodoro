@@ -114,7 +114,7 @@
 
 /* Stats card */
 .stat-card {
-    @apply bg-gradient-to-br from-violet-50 to-white rounded-xl p-4 border border-violet-100/50;
+    @apply bg-gradient-to-br from-violet-50 to-white dark:from-violet-950/20 dark:to-background rounded-xl p-4 border border-violet-100/50 dark:border-violet-800/20;
 }
 
 /* Empty state */
