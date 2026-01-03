@@ -38,7 +38,14 @@ const PomodoroTimer = ({
   // Reset timer when task changes
   useEffect(() => {
     setTimeLeft(getSessionDuration("work"));
-    setIsRunning(false);
+
+    // Auto-start if a task is selected
+    const shouldStart = !!activeTask;
+    setIsRunning(shouldStart);
+    if (shouldStart) {
+      startTimeRef.current = Date.now();
+    }
+
     setSessionType("work");
     setTotalTimeSpent(0);
     if (intervalRef.current) {
@@ -244,11 +251,10 @@ const PomodoroTimer = ({
           <Button
             size="lg"
             onClick={toggleTimer}
-            className={`rounded-full w-16 h-16 ${
-              sessionType === "work"
+            className={`rounded-full w-16 h-16 ${sessionType === "work"
                 ? "bg-amber-500 hover:bg-amber-600"
                 : "bg-violet-500 hover:bg-violet-600"
-            }`}
+              }`}
             disabled={!activeTask && sessionType === "work"}
             data-testid="play-pause-btn"
           >
