@@ -362,8 +362,8 @@ const Dashboard = ({
                       <div
                         key={task.id}
                         className={`task-card p-3 md:p-4 rounded-xl border transition-all animate-fade-in ${isActive
-                            ? "ring-2 ring-violet-500/30 border-violet-300 bg-violet-50/50"
-                            : "border-border/40 bg-card hover:bg-muted/30"
+                          ? "ring-2 ring-violet-500/30 border-violet-300 bg-violet-50/50"
+                          : "border-border/40 bg-card hover:bg-muted/30"
                           }`}
                         style={{ animationDelay: `${index * 100}ms` }}
                         data-testid={`task-card-${task.id}`}
@@ -555,6 +555,11 @@ const Dashboard = ({
             <BarChart3 className="h-4 w-4" />
           </Button>
         </div>
+      </div>
+
+      {/* Footer Copyright */}
+      <div className="hidden lg:block fixed bottom-4 right-8 text-xs text-muted-foreground/40 font-mono">
+        © 2026 Pomodoro-Indefine
       </div>
     </div>
   );
