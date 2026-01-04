@@ -1,8 +1,15 @@
+```javascript
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sparkles, ArrowRight, User, Laptop } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import axios from "axios";
+import { toast } from "sonner";
+
+// Define API URL (same logic as App.js)
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "";
+const API = BACKEND_URL ? `${ BACKEND_URL } /api` : "/api";
 
 const LoginPage = ({ onLogin }) => {
     const [isLogin, setIsLogin] = useState(true);
@@ -33,16 +40,37 @@ const LoginPage = ({ onLogin }) => {
         e.preventDefault();
         setIsLoading(true);
 
-        // Simulate setting up workspace
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        try {
+            let userUser = null;
 
-        onLogin({
-            name: formData.name || "User",
-            email: formData.email,
-            avatar: AVATARS[avatarIndex], // Use selected/random local avatar
-            gender: formData.gender,
-            id: "user_" + Math.random().toString(36).substr(2, 9)
-        });
+            if (isLogin) {
+                // Login
+                const response = await axios.post(`${API}/auth/login`, {
+                    email: formData.email,
+                    password: formData.password
+                });
+                userUser = response.data;
+            } else {
+                // Signup
+                const response = await axios.post(`${API}/auth/signup`, {
+                    email: formData.email,
+                    password: formData.password,
+                    name: formData.name,
+                    gender: formData.gender,
+                    avatar: AVATARS[avatarIndex]
+                });
+                userUser = response.data;
+                toast.success("Account created successfully!");
+            }
+
+            // Pass full user object (with ID) to parent
+            onLogin(userUser);
+
+        } catch (error) {
+            console.error("Auth error:", error);
+            toast.error(error.response?.data?.detail || "Authentication failed");
+            setIsLoading(false); // Stop loading only on error
+        }
     };
 
     return (
