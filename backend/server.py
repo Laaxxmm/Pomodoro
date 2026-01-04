@@ -1201,7 +1201,7 @@ async def get_today_tasks(user_id: Optional[str] = None):
     return await prioritize_today()
 
 @api_router.post("/prioritize")
-async def prioritize_today():
+async def prioritize_today(user_id: str):
     """Run AI prioritization for today's tasks"""
     if not supabase:
         raise HTTPException(status_code=500, detail="Database not connected")
@@ -1210,7 +1210,8 @@ async def prioritize_today():
     settings = get_settings()
     
     try:
-        all_tasks_resp = supabase.table("tasks").select("*").eq("completed", False).limit(100).execute()
+        # STRICT ISOLATION: Only fetch this user's uncompleted tasks
+        all_tasks_resp = supabase.table("tasks").select("*").eq("completed", False).eq("user_id", user_id).limit(100).execute()
         all_tasks = all_tasks_resp.data
         
         if not all_tasks:
@@ -1230,11 +1231,12 @@ async def prioritize_today():
         plan = DailyPlan(
             date=today,
             task_ids=selected_ids,
-            prioritization_reason=result["reason"]
+            prioritization_reason=result["reason"],
+            user_id=user_id
         )
         
-        # Upsert daily plan
-        supabase.table("daily_plans").upsert(plan.model_dump(), on_conflict="date").execute()
+        # Upsert daily plan with correct composite key
+        supabase.table("daily_plans").upsert(plan.model_dump(), on_conflict="date,user_id").execute()
         
         # Robustness: Filter tasks from the copy we already have in memory
         # This avoids issues with Supabase 'in_' query syntax or read consistency

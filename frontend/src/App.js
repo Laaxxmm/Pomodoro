@@ -200,7 +200,7 @@ function App() {
   const prioritizeTasks = async () => {
     setIsPrioritizing(true);
     try {
-      const response = await axios.post(`${API}/prioritize`);
+      const response = await axios.post(`${API}/prioritize?user_id=${user?.id}`);
       setTodayTasks(response.data.tasks || []);
       setPrioritizationReason(response.data.reason || "");
       toast.success("Tasks prioritized by AI");
