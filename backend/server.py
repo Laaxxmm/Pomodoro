@@ -254,52 +254,79 @@ def get_settings():
         logger.error(f"Error fetching settings: {e}")
         return Settings().model_dump()
 
-async def refresh_google_token():
-    """Refresh Google access token if expired"""
-    settings = get_settings()
-    if not settings.get("google_refresh_token"):
+async def refresh_google_token(user_id: str):
+    """Refresh Google access token using refresh token"""
+    if not supabase:
         return None
-    
+        
     try:
+        user_resp = supabase.table("users").select("google_refresh_token").eq("id", user_id).single().execute()
+        if not user_resp.data:
+            return None
+            
+        refresh_token = user_resp.data.get("google_refresh_token")
+        if not refresh_token:
+            return None
+
         async with httpx.AsyncClient() as client:
-            response = await client.post(
+            token_response = await client.post(
                 "https://oauth2.googleapis.com/token",
                 data={
                     "client_id": GOOGLE_CLIENT_ID,
                     "client_secret": GOOGLE_CLIENT_SECRET,
-                    "refresh_token": settings["google_refresh_token"],
+                    "refresh_token": refresh_token,
                     "grant_type": "refresh_token"
                 }
             )
-            if response.status_code == 200:
-                token_data = response.json()
+            
+            if token_response.status_code == 200:
+                token_data = token_response.json()
                 expiry = (datetime.now(timezone.utc) + timedelta(seconds=token_data.get("expires_in", 3600))).isoformat()
                 
-                # Update Supabase
-                if supabase:
-                    supabase.table("settings").update({
-                        "google_access_token": token_data["access_token"],
-                        "google_token_expiry": expiry
-                    }).eq("id", "user_settings").execute()
+                # Update user
+                supabase.table("users").update({
+                    "google_access_token": token_data["access_token"],
+                    "google_token_expiry": expiry
+                }).eq("id", user_id).execute()
                 
                 return token_data["access_token"]
+            
     except Exception as e:
-        logger.error(f"Token refresh error: {e}")
-    return None
-
-async def get_valid_google_token():
-    """Get a valid Google access token, refreshing if needed"""
-    settings = get_settings()
-    if not settings.get("google_access_token"):
+        logger.error(f"Refresh error: {e}")
         return None
-    
-    # Check if token is expired
-    if settings.get("google_token_expiry"):
-        expiry = datetime.fromisoformat(settings["google_token_expiry"].replace("Z", "+00:00"))
-        if datetime.now(timezone.utc) >= expiry:
-            return await refresh_google_token()
-    
-    return settings.get("google_access_token")
+
+async def get_valid_google_token(user_id: str):
+    """Get a valid Google access token, refreshing if needed"""
+    if not user_id:
+        return None
+        
+    if not supabase:
+        return None
+        
+    try:
+        user_resp = supabase.table("users").select("*").eq("id", user_id).single().execute()
+        if not user_resp.data:
+            return None
+        
+        user_data = user_resp.data
+        if not user_data.get("google_access_token"):
+            return None
+        
+        # Check if token is expired
+        if user_data.get("google_token_expiry"):
+            expiry_str = user_data["google_token_expiry"].replace("Z", "+00:00")
+            try:
+                expiry = datetime.fromisoformat(expiry_str)
+            except ValueError:
+                return await refresh_google_token(user_id)
+                
+            if datetime.now(timezone.utc) >= expiry:
+                return await refresh_google_token(user_id)
+        
+        return user_data.get("google_access_token")
+    except Exception as e:
+        logger.error(f"Get token error: {e}")
+        return None
 
 async def prioritize_tasks_with_ai(tasks: List[dict]) -> dict:
     """Use AI to prioritize tasks and select top 3-4 for today"""
@@ -528,9 +555,9 @@ def google_disconnect(user_id: str):
 # ============ GOOGLE CALENDAR ROUTES ============
 
 @api_router.get("/calendar/events")
-async def get_calendar_events(days: int = 7):
+async def get_calendar_events(user_id: str, days: int = 7):
     """Get upcoming calendar events"""
-    token = await get_valid_google_token()
+    token = await get_valid_google_token(user_id)
     if not token:
         raise HTTPException(status_code=401, detail="Google not connected")
     
@@ -576,9 +603,9 @@ async def get_calendar_events(days: int = 7):
         raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.post("/calendar/import")
-async def import_calendar_events(days: int = 7):
+async def import_calendar_events(user_id: str, days: int = 7):
     """Import calendar events as tasks"""
-    events_response = await get_calendar_events(days)
+    events_response = await get_calendar_events(user_id, days)
     events = events_response["events"]
     
     imported = 0
@@ -589,7 +616,7 @@ async def import_calendar_events(days: int = 7):
         
         # Check if already imported
         try:
-            existing = supabase.table("tasks").select("id").eq("source_id", event["id"]).eq("source", "calendar").execute()
+            existing = supabase.table("tasks").select("id").eq("source_id", event["id"]).eq("source", "calendar").eq("user_id", user_id).execute()
             if existing.data:
                 continue
         except Exception:
@@ -605,18 +632,21 @@ async def import_calendar_events(days: int = 7):
                     deadline = event["start"]
             except:
                 pass
-        
+                
+        # Create task
         task = Task(
             title=event["title"],
-            description=event.get("description", "")[:500] if event.get("description") else f"Calendar event: {event.get('location', '')}",
+            description=f"Imported from Google Calendar: {event['description']}",
             deadline=deadline,
-            estimated_minutes=30,
-            category="meeting",
+            estimated_minutes=60, # Default duration
             source="calendar",
-            source_id=event["id"]
+            user_id=user_id # STRICT ISOLATION
         )
+        task_data = task.model_dump()
+        task_data["source_id"] = event["id"]
+        
         try:
-            supabase.table("tasks").insert(task.model_dump()).execute()
+            supabase.table("tasks").insert(task_data).execute()
             imported += 1
         except Exception as e:
             logger.error(f"Error importing event {event['id']}: {e}")
@@ -626,9 +656,10 @@ async def import_calendar_events(days: int = 7):
 # ============ GMAIL ROUTES ============
 
 @api_router.get("/gmail/messages")
-async def get_gmail_messages(max_results: int = 10, query: str = "is:unread"):
+@api_router.get("/gmail/messages")
+async def get_gmail_messages(user_id: str, max_results: int = 10, query: str = "is:unread"):
     """Get recent Gmail messages"""
-    token = await get_valid_google_token()
+    token = await get_valid_google_token(user_id)
     if not token:
         raise HTTPException(status_code=401, detail="Google not connected")
     
@@ -687,10 +718,10 @@ async def get_gmail_messages(max_results: int = 10, query: str = "is:unread"):
         raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.post("/gmail/extract-tasks")
-async def extract_tasks_from_email(email_id: str):
+async def extract_tasks_from_email(email_id: str, user_id: str):
     """Extract action items from an email using AI"""
     # Get the email
-    token = await get_valid_google_token()
+    token = await get_valid_google_token(user_id)
     if not token:
         raise HTTPException(status_code=401, detail="Google not connected")
     
