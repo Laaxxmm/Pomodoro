@@ -198,68 +198,92 @@ const GoogleIntegrationDialog = ({ open, onClose, settings, user, onRefresh, onT
                     {settings.google_email && (
                       <p className="text-sm text-muted-foreground">{settings.google_email}</p>
                     )}
-                  </div>
-                </div>
-                <Button
-                  onClick={isConnected ? disconnectGoogle : connectGoogle}
-                  variant={isConnected ? "outline" : "default"}
-                  className={isConnected ? "" : "btn-primary"}
-                  data-testid="google-connect-btn"
+                    <DialogContent className="sm:max-w-[425px]">
+                      <div className="flex flex-col items-center gap-6 py-6 text-center">
+                        <div className="p-4 rounded-full bg-blue-50 dark:bg-blue-900/10">
+                          {isConnected ? (
+                            <CheckCircle2 className="h-8 w-8 text-green-500" />
+                          ) : (
+                            <Link2 className="h-8 w-8 text-blue-500" />
+                          )}
+                        </div>
+
+                        <div className="space-y-2">
+                          <h2 className="text-lg font-semibold">
+                            {isConnected ? "Google Account Connected" : "Connect Your Google Account"}
+                          </h2>
+                          <p className="text-sm text-muted-foreground max-w-[280px] mx-auto">
+                            Import calendar events as tasks and extract action items from your emails using AI
+                          </p>
+                        </div>
+
+                        <div className="w-full max-w-xs space-y-3">
+                          {/* CONFIG SECTION */}
+                          <div className="text-left w-full">
+                            <button
+                              onClick={() => setShowConfig(!showConfig)}
+                              className="text-xs text-muted-foreground hover:text-primary underline mb-2"
+                            >
+                              {showConfig ? "Hide Configuration" : "Use Custom Credentials (Advanced)"}
+                            </button>
+
+                            {showConfig && (
+                              <div className="space-y-2 p-3 bg-muted/50 rounded-md border text-xs">
+                                <p className="text-muted-foreground mb-2">
+                                  Use your own Google Cloud credentials if the default ones are not configured.
+                                </p>
+                                <input
+                                  type="text"
+                                  placeholder="Client ID"
+                                  className="w-full p-1 border rounded bg-background"
+                                  value={clientId}
+                                  onChange={e => setClientId(e.target.value)}
+                                />
+                                <input
+                                  type="password"
+                                  placeholder="Client Secret"
+                                  className="w-full p-1 border rounded bg-background"
+                                  value={clientSecret}
+                                  onChange={e => setClientSecret(e.target.value)}
+                                />
+                                <Button size="sm" onClick={saveConfig} className="w-full mt-2" variant="outline">
+                                  Save Credentials
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+
+                          {isConnected ? (
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between p-3 border rounded-lg bg-card">
+                                <div className="flex items-center gap-2">
+                                  <div className="h-2 w-2 rounded-full bg-green-500" />
+                                  <span className="text-sm font-medium">{settings.google_email || "Connected"}</span>
+                                </div>
+                                <Button variant="ghost" size="sm" onClick={disconnectGoogle} className="text-red-500 h-8 px-2">
+                                  Disconnect
+                                </Button>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-2">
+                                <Button onClick={fetchCalendarEvents} variant="outline" className="w-full" disabled={loadingCalendar}>
+                                  {loadingCalendar ? "Fetching..." : "View Calendar"}
+                                </Button>
+                                <Button onClick={importCalendarEvents} className="w-full" disabled={importing}>
+                                  {importing ? "Importing..." : "Import Tasks"}
+                                </Button>
+                              </div>
+
+                              <Button onClick={fetchEmails} variant="secondary" className="w-full" disabled={loadingEmails}>
+                                {loadingEmails ? "Loading..." : "Scan Emails"}
+                              </Button>
+                            </div>
+                          ) : (
+              <div className="space-y-4">
+                <Button 
+                  onClick={connectGoogle} 
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/20"
                 >
-                  {isConnected ? (
-                    <>
-                      <Unlink className="h-4 w-4 mr-2" />
-                      Disconnect
-                    </>
-                  ) : (
-                    <>
-                      <Link2 className="h-4 w-4 mr-2" />
-                      Connect Google
-                    </>
-                  )}
-                </Button>
-              </div>
-            </Card>
-
-            {isConnected && (
-              <>
-                <Separator />
-
-                {/* Calendar Events */}
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-sm font-medium flex items-center gap-2">
-                      <CalendarDays className="h-4 w-4 text-violet-500" />
-                      Upcoming Calendar Events
-                    </h3>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={fetchCalendarEvents}
-                        disabled={loadingCalendar}
-                        data-testid="refresh-calendar-btn"
-                      >
-                        <RefreshCw className={`h-4 w-4 ${loadingCalendar ? "animate-spin" : ""}`} />
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={importCalendarEvents}
-                        disabled={importing || calendarEvents.length === 0}
-                        className="btn-gold text-xs"
-                        data-testid="import-calendar-btn"
-                      >
-                        <Import className="h-4 w-4 mr-1" />
-                        {importing ? "Importing..." : "Import All"}
-                      </Button>
-                    </div>
-                  </div>
-
-                  {loadingCalendar ? (
-                    <div className="space-y-2">
-                      <Skeleton className="h-16 rounded-lg" />
-                      <Skeleton className="h-16 rounded-lg" />
-                    </div>
                   ) : calendarEvents.length > 0 ? (
                     <div className="space-y-2 max-h-48 overflow-y-auto">
                       {calendarEvents.slice(0, 5).map((event) => (
@@ -298,102 +322,102 @@ const GoogleIntegrationDialog = ({ open, onClose, settings, user, onRefresh, onT
                 <Separator />
 
                 {/* Gmail Messages */}
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-sm font-medium flex items-center gap-2">
-                      <Mail className="h-4 w-4 text-rose-500" />
-                      Recent Unread Emails
-                    </h3>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={fetchEmails}
-                      disabled={loadingEmails}
-                      data-testid="refresh-emails-btn"
-                    >
-                      <RefreshCw className={`h-4 w-4 ${loadingEmails ? "animate-spin" : ""}`} />
-                    </Button>
-                  </div>
-
-                  {loadingEmails ? (
-                    <div className="space-y-2">
-                      <Skeleton className="h-20 rounded-lg" />
-                      <Skeleton className="h-20 rounded-lg" />
-                    </div>
-                  ) : emails.length > 0 ? (
-                    <div className="space-y-2 max-h-64 overflow-y-auto">
-                      {emails.map((email) => (
-                        <div
-                          key={email.id}
-                          className="p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors"
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex-1 min-w-0">
-                              <p className="font-medium text-sm truncate">{email.subject}</p>
-                              <p className="text-xs text-muted-foreground truncate">
-                                {email.from}
-                              </p>
-                              <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                                {email.snippet}
-                              </p>
+                          <div>
+                            <div className="flex items-center justify-between mb-4">
+                              <h3 className="text-sm font-medium flex items-center gap-2">
+                                <Mail className="h-4 w-4 text-rose-500" />
+                                Recent Unread Emails
+                              </h3>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={fetchEmails}
+                                disabled={loadingEmails}
+                                data-testid="refresh-emails-btn"
+                              >
+                                <RefreshCw className={`h-4 w-4 ${loadingEmails ? "animate-spin" : ""}`} />
+                              </Button>
                             </div>
-                            <Button
-                              size="sm"
-                              onClick={() => extractTasksFromEmail(email.id)}
-                              disabled={extracting[email.id]}
-                              className="flex-shrink-0 text-xs"
-                              variant="outline"
-                              data-testid={`extract-email-${email.id}`}
-                            >
-                              <Sparkles
-                                className={`h-3 w-3 mr-1 ${extracting[email.id] ? "animate-spin" : ""}`}
-                              />
-                              {extracting[email.id] ? "..." : "Extract"}
+
+                            {loadingEmails ? (
+                              <div className="space-y-2">
+                                <Skeleton className="h-20 rounded-lg" />
+                                <Skeleton className="h-20 rounded-lg" />
+                              </div>
+                            ) : emails.length > 0 ? (
+                              <div className="space-y-2 max-h-64 overflow-y-auto">
+                                {emails.map((email) => (
+                                  <div
+                                    key={email.id}
+                                    className="p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors"
+                                  >
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div className="flex-1 min-w-0">
+                                        <p className="font-medium text-sm truncate">{email.subject}</p>
+                                        <p className="text-xs text-muted-foreground truncate">
+                                          {email.from}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                                          {email.snippet}
+                                        </p>
+                                      </div>
+                                      <Button
+                                        size="sm"
+                                        onClick={() => extractTasksFromEmail(email.id)}
+                                        disabled={extracting[email.id]}
+                                        className="flex-shrink-0 text-xs"
+                                        variant="outline"
+                                        data-testid={`extract-email-${email.id}`}
+                                      >
+                                        <Sparkles
+                                          className={`h-3 w-3 mr-1 ${extracting[email.id] ? "animate-spin" : ""}`}
+                                        />
+                                        {extracting[email.id] ? "..." : "Extract"}
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-sm text-muted-foreground text-center py-4">
+                                No unread emails found
+                              </p>
+                            )}
+                          </div>
+                        </>
+            )}
+
+                        {!isConnected && (
+                          <div className="text-center py-8">
+                            <div className="p-4 bg-muted/30 rounded-xl inline-block mb-4">
+                              <Link2 className="h-12 w-12 text-muted-foreground" />
+                            </div>
+                            <h3 className="font-medium mb-2">Connect Your Google Account</h3>
+                            <p className="text-sm text-muted-foreground mb-4 max-w-sm mx-auto">
+                              Import calendar events as tasks and extract action items from your emails using AI
+                            </p>
+                            <Button onClick={connectGoogle} className="btn-primary" data-testid="connect-google-cta">
+                              <Link2 className="h-4 w-4 mr-2" />
+                              Connect Google Account
                             </Button>
                           </div>
-                        </div>
-                      ))}
+                        )}
+                      </div>
+                    </ScrollArea>
+
+                    <div className="pt-4 border-t">
+                      <Button
+                        onClick={onClose}
+                        variant="outline"
+                        className="w-full rounded-full"
+                        data-testid="close-google-dialog-btn"
+                      >
+                        Close
+                      </Button>
                     </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground text-center py-4">
-                      No unread emails found
-                    </p>
-                  )}
-                </div>
-              </>
-            )}
-
-            {!isConnected && (
-              <div className="text-center py-8">
-                <div className="p-4 bg-muted/30 rounded-xl inline-block mb-4">
-                  <Link2 className="h-12 w-12 text-muted-foreground" />
-                </div>
-                <h3 className="font-medium mb-2">Connect Your Google Account</h3>
-                <p className="text-sm text-muted-foreground mb-4 max-w-sm mx-auto">
-                  Import calendar events as tasks and extract action items from your emails using AI
-                </p>
-                <Button onClick={connectGoogle} className="btn-primary" data-testid="connect-google-cta">
-                  <Link2 className="h-4 w-4 mr-2" />
-                  Connect Google Account
-                </Button>
-              </div>
-            )}
-          </div>
-        </ScrollArea>
-
-        <div className="pt-4 border-t">
-          <Button
-            onClick={onClose}
-            variant="outline"
-            className="w-full rounded-full"
-            data-testid="close-google-dialog-btn"
-          >
-            Close
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
+                  </DialogContent>
+                </Dialog>
+                );
 };
 
-export default GoogleIntegrationDialog;
+                export default GoogleIntegrationDialog;
