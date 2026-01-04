@@ -800,7 +800,8 @@ Only include clear action items. If no tasks found, return empty tasks array.
                     category=item.get("category", "email"),
                     source="email",
                     source_id=email_id,
-                    priority_score=80 if item.get("priority") == "high" else 50 if item.get("priority") == "medium" else 30
+                    priority_score=80 if item.get("priority") == "high" else 50 if item.get("priority") == "medium" else 30,
+                    user_id=user_id # STRICT ISOLATION
                 )
                 task_dict = task.model_dump()
                 try:
@@ -847,8 +848,19 @@ def health():
     return {"status": "healthy", "ai_enabled": bool(GEMINI_API_KEY), "db_connected": bool(supabase)}
 
 @api_router.get("/settings")
-def get_user_settings():
-    return get_settings()
+def get_user_settings(user_id: Optional[str] = None):
+    settings = get_settings()
+    
+    if user_id and supabase:
+        try:
+            # Merge user-specific integration status
+            user_resp = supabase.table("users").select("google_email, google_calendar_connected, gmail_connected").eq("id", user_id).single().execute()
+            if user_resp.data:
+                settings.update(user_resp.data)
+        except Exception as e:
+            logger.error(f"Error fetching user settings: {e}")
+            
+    return settings
 
 @api_router.put("/settings")
 def update_user_settings(settings_update: dict):
