@@ -111,14 +111,19 @@ function App() {
     }
   }, [user]);
 
-  const fetchStats = useCallback(async () => {
+  const fetchStats = useCallback(async (currentUser) => {
     try {
-      const response = await axios.get(`${API}/stats`);
+      const u = currentUser || user;
+      let url = `${API}/stats`;
+      if (u?.id) {
+        url += `?user_id=${u.id}`;
+      }
+      const response = await axios.get(url);
       setStats(response.data);
     } catch (e) {
       console.error("Error fetching stats:", e);
     }
-  }, []);
+  }, [user]);
 
   const fetchSettings = useCallback(async () => {
     try {
@@ -137,7 +142,7 @@ function App() {
         await Promise.all([
           fetchTodayTasks(user),
           fetchAllTasks(user),
-          fetchStats(),
+          fetchStats(user),
           fetchSettings(),
         ]);
         setLoading(false);
