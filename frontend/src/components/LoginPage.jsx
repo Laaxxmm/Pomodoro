@@ -104,7 +104,10 @@ const LoginPage = ({ onLogin }) => {
                 <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-amber-100 rounded-full mix-blend-multiply filter blur-3xl opacity-70 animate-blob animation-delay-2000"></div>
 
                 <div className="max-w-md w-full relative z-10">
-                    <div className="mb-10">
+                    <div className="mb-10 text-center md:text-left">
+                        <div className="flex justify-center md:justify-start mb-6">
+                            <img src="/images/login-illustration.png" alt="FocusFlow 3D Icon" className="w-48 h-48 object-contain drop-shadow-2xl animate-float-slow" />
+                        </div>
                         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 text-slate-600 font-medium text-xs mb-6">
                             <Sparkles className="w-3 h-3 text-amber-500" />
                             <span>v2.0 Now Available</span>
