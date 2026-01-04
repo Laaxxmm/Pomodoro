@@ -60,6 +60,7 @@ class TaskCreate(BaseModel):
     recurrence_type: Optional[str] = None
     recurrence_interval: int = 1
     recurrence_days: List[str] = []
+    user_id: Optional[str] = None
 
 class Task(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -84,6 +85,7 @@ class Task(BaseModel):
     recurrence_type: Optional[str] = None
     recurrence_interval: int = 1
     recurrence_days: List[str] = []
+    user_id: Optional[str] = None
 
 class DailyPlan(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
