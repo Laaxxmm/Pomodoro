@@ -1074,12 +1074,6 @@ async def get_today_tasks(user_id: Optional[str] = None):
             "tasks": tasks,
             "reason": "Tasks scheduled for today"
         }
-                return {
-                    "date": today,
-                    "tasks": tasks,
-                    "reason": plan.get("prioritization_reason", ""),
-                    "plan_id": plan["id"]
-                }
     except Exception as e:
         logger.error(f"Error fetching today plan: {e}")
     
