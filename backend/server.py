@@ -899,14 +899,18 @@ def create_task(task_input: TaskCreate):
 @api_router.get("/tasks")
 def get_tasks(include_completed: bool = False, date: Optional[str] = None, user_id: Optional[str] = None):
     """Get all tasks, optionally filtered"""
+    # STRICT ISOLATION: If no user_id is provided, return nothing.
+    if not user_id:
+        return []
+        
     if not supabase:
         return []
 
     try:
         query = supabase.table("tasks").select("*").order("created_at", desc=True).limit(100)
         
-        if user_id:
-            query = query.eq("user_id", user_id)
+        # We checked user_id exists above
+        query = query.eq("user_id", user_id)
 
         if not include_completed:
             query = query.eq("completed", False)
@@ -1125,6 +1129,10 @@ def start_task(task_id: str):
 @api_router.get("/today")
 async def get_today_tasks(user_id: Optional[str] = None):
     """Get AI-prioritized tasks for today"""
+    # STRICT ISOLATION: If no user_id, return empty.
+    if not user_id:
+         return {"date": "", "tasks": [], "reason": "No user identified"}
+
     if not supabase:
         return {"date": "", "tasks": [], "reason": "DB error"}
 
@@ -1133,8 +1141,8 @@ async def get_today_tasks(user_id: Optional[str] = None):
     try:
         # Check for plan
         plan_query = supabase.table("daily_plans").select("*").eq("date", today)
-        if user_id:
-            plan_query = plan_query.eq("user_id", user_id)
+        # We checked user_id exists
+        plan_query = plan_query.eq("user_id", user_id)
         
         plan_resp = plan_query.execute()
         
