@@ -22,6 +22,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Sparkles,
+  Settings,
 } from "lucide-react";
 import axios from "axios";
 import { toast } from "sonner";
