@@ -12,41 +12,47 @@ const LoginPage = ({ onLogin }) => {
         password: "",
         gender: "male" // male, female
     });
-    const [avatarUrl, setAvatarUrl] = useState("");
+    const [avatarIndex, setAvatarIndex] = useState(0);
     const [isLoading, setIsLoading] = useState(false);
 
-    // Generate avatar
+    // Available local avatars
+    const AVATARS = [
+        "/avatars/avatar_1.png",
+        "/avatars/avatar_2.png",
+        "/avatars/avatar_3.png",
+        "/avatars/avatar_4.png",
+        "/avatars/avatar_5.png"
+    ];
+
+    // Randomize initial avatar or on refresh
     useEffect(() => {
-        const seed = formData.name || "user";
-        // Using version 7.x which is very stable
-        // Styles: 'micah' is great. 'avataaars' is classic.
-        // Let's stick to 'micah' but Ensure URL is correct.
-        setAvatarUrl(`https://api.dicebear.com/7.x/micah/svg?seed=${seed}&baseColor=f9c9b6&mouth=smile,laugh&eyebrows=up`);
-    }, [formData.name, formData.gender]);
+        setAvatarIndex(Math.floor(Math.random() * AVATARS.length));
+    }, []);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setIsLoading(true);
 
-        // Simulate network delay for smoothness (prevent instant flash)
-        await new Promise(resolve => setTimeout(resolve, 800));
+        // Simulate setting up workspace
+        await new Promise(resolve => setTimeout(resolve, 1500));
 
         onLogin({
             name: formData.name || "User",
             email: formData.email,
-            avatar: avatarUrl,
+            avatar: AVATARS[avatarIndex], // Use selected/random local avatar
             gender: formData.gender,
-            id: "user_" + Math.random().toString(36).substr(2, 9) // Simple mock ID
+            id: "user_" + Math.random().toString(36).substr(2, 9)
         });
     };
 
     return (
         <div className="min-h-screen flex w-full bg-white text-slate-900 font-sans">
-            {/* Loading Overlay */}
+            {/* Loading Overlay with Transition */}
             {isLoading && (
-                <div className="fixed inset-0 bg-white/80 backdrop-blur-sm z-50 flex items-center justify-center flex-col animate-in fade-in duration-300">
+                <div className="fixed inset-0 bg-white z-[100] flex items-center justify-center flex-col animate-in fade-in duration-500">
                     <div className="w-16 h-16 border-4 border-violet-200 border-t-violet-600 rounded-full animate-spin mb-4"></div>
-                    <p className="text-lg font-medium text-slate-600 animate-pulse">Setting up your workspace...</p>
+                    <h2 className="text-2xl font-bold text-slate-800 mb-2">Welcome to FocusFlow</h2>
+                    <p className="text-slate-500">Preparing your personal dashboard...</p>
                 </div>
             )}
 
@@ -76,8 +82,8 @@ const LoginPage = ({ onLogin }) => {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in">
                                 {/* Avatar Preview */}
                                 <div className="flex justify-center md:justify-start">
-                                    <div className="w-24 h-24 rounded-2xl bg-white border-2 border-slate-100 shadow-xl overflow-hidden p-1">
-                                        <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover rounded-xl bg-violet-50" />
+                                    <div className="w-24 h-24 rounded-2xl bg-white border-2 border-slate-100 shadow-xl overflow-hidden p-1 group cursor-pointer" onClick={() => setAvatarIndex((prev) => (prev + 1) % AVATARS.length)}>
+                                        <img src={AVATARS[avatarIndex]} alt="Avatar" className="w-full h-full object-cover rounded-xl bg-violet-50 group-hover:scale-110 transition-transform" />
                                     </div>
                                 </div>
 
