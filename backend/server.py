@@ -897,7 +897,7 @@ def create_task(task_input: TaskCreate):
         raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.get("/tasks")
-def get_tasks(include_completed: bool = False, date: Optional[str] = None):
+def get_tasks(include_completed: bool = False, date: Optional[str] = None, user_id: Optional[str] = None):
     """Get all tasks, optionally filtered"""
     if not supabase:
         return []
@@ -905,6 +905,9 @@ def get_tasks(include_completed: bool = False, date: Optional[str] = None):
     try:
         query = supabase.table("tasks").select("*").order("created_at", desc=True).limit(100)
         
+        if user_id:
+            query = query.eq("user_id", user_id)
+
         if not include_completed:
             query = query.eq("completed", False)
         
@@ -1026,7 +1029,7 @@ def start_task(task_id: str):
 
 # Today's Prioritized Tasks
 @api_router.get("/today")
-async def get_today_tasks():
+async def get_today_tasks(user_id: Optional[str] = None):
     """Get AI-prioritized tasks for today"""
     if not supabase:
         return {"date": "", "tasks": [], "reason": "DB error"}
@@ -1034,7 +1037,12 @@ async def get_today_tasks():
     today = datetime.now(timezone.utc).date().isoformat()
     
     try:
-        plan_resp = supabase.table("daily_plans").select("*").eq("date", today).execute()
+        # Check for plan
+        plan_query = supabase.table("daily_plans").select("*").eq("date", today)
+        if user_id:
+            plan_query = plan_query.eq("user_id", user_id)
+        
+        plan_resp = plan_query.execute()
         
         if plan_resp.data:
             plan = plan_resp.data[0]
@@ -1042,10 +1050,30 @@ async def get_today_tasks():
             
             if task_ids:
                 # Get tasks
-                # 'in' filter expects a list formatted as tuple string for some clients, or just list
-                # supabase-py uses .in_("column", [list])
-                tasks_resp = supabase.table("tasks").select("*").in_("id", task_ids).eq("completed", False).execute()
+                t_query = supabase.table("tasks").select("*").in_("id", task_ids).eq("completed", False)
+                if user_id:
+                    t_query = t_query.eq("user_id", user_id)
+                
+                tasks_resp = t_query.execute()
                 tasks = tasks_resp.data
+                return {
+                    "date": today,
+                    "tasks": tasks,
+                    "reason": plan.get("prioritization_reason", "")
+                }
+        
+        # Fallback: Get scheduled tasks
+        fallback_query = supabase.table("tasks").select("*").eq("scheduled_date", today).eq("completed", False)
+        if user_id:
+            fallback_query = fallback_query.eq("user_id", user_id)
+            
+        tasks_resp = fallback_query.execute()
+        tasks = tasks_resp.data
+        return {
+            "date": today,
+            "tasks": tasks,
+            "reason": "Tasks scheduled for today"
+        }
                 return {
                     "date": today,
                     "tasks": tasks,
