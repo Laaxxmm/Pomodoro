@@ -41,7 +41,6 @@ function App() {
   const [showReport, setShowReport] = useState(false);
   const [showGoogleIntegration, setShowGoogleIntegration] = useState(false);
   const [activeTask, setActiveTask] = useState(null);
-  const [activeTask, setActiveTask] = useState(null);
   const [currentSession, setCurrentSession] = useState(null);
   const [user, setUser] = useState(() => {
     const saved = localStorage.getItem("focus_user");
