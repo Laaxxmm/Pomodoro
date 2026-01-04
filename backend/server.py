@@ -954,11 +954,105 @@ def delete_task(task_id: str):
     """Delete a task"""
     try:
         response = supabase.table("tasks").delete().eq("id", task_id).execute()
-        # Supabase API might strictly strictly return data or count
         return {"success": True}
     except Exception as e:
         logger.error(f"Delete task error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+# Auth Helpers
+import hashlib
+import secrets
+
+def hash_password(password: str) -> str:
+    # Basic salt + sha256 for demo purposes (simple but better than plain text)
+    salt = secrets.token_hex(8)
+    # Stored format: salt$hash
+    hashed = hashlib.sha256((salt + password).encode()).hexdigest()
+    return f"{salt}${hashed}"
+
+def verify_password(password: str, stored_hash: str) -> bool:
+    try:
+        salt, hash_val = stored_hash.split("$")
+        verify_val = hashlib.sha256((salt + password).encode()).hexdigest()
+        return verify_val == hash_val
+    except ValueError:
+        return False
+
+# Auth Models
+class UserSignup(BaseModel):
+    email: str
+    password: str
+    name: Optional[str] = None
+    gender: Optional[str] = "male"
+    avatar: Optional[str] = None
+
+class UserLogin(BaseModel):
+    email: str
+    password: str
+
+@api_router.post("/auth/signup")
+def signup(user: UserSignup):
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Database not connected")
+    
+    # Check existing
+    existing = supabase.table("users").select("id").eq("email", user.email).execute()
+    if existing.data:
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    # Create new user
+    new_user = {
+        "id": str(uuid.uuid4()),
+        "email": user.email,
+        "password_hash": hash_password(user.password),
+        "name": user.name,
+        "gender": user.gender,
+        "avatar": user.avatar,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    try:
+        supabase.table("users").insert(new_user).execute()
+        # Return user info (no password)
+        return {
+            "id": new_user["id"],
+            "name": new_user["name"],
+            "email": new_user["email"],
+            "gender": new_user["gender"],
+            "avatar": new_user["avatar"]
+        }
+    except Exception as e:
+        logger.error(f"Signup error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.post("/auth/login")
+def login(creds: UserLogin):
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Database not connected")
+
+    try:
+        # Fetch user
+        response = supabase.table("users").select("*").eq("email", creds.email).execute()
+        if not response.data:
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+        
+        user = response.data[0]
+        if not verify_password(creds.password, user["password_hash"]):
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+            
+        return {
+            "id": user["id"],
+            "name": user["name"],
+            "email": user["email"],
+            "gender": user.gender,
+            "avatar": user.avatar
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Login error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @api_router.put("/tasks/{task_id}/complete")
 def complete_task(task_id: str, time_spent_seconds: int = 0):
