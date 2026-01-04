@@ -8,8 +8,9 @@ import axios from "axios";
 import { toast } from "sonner";
 
 // Define API URL (same logic as App.js)
+// Define API URL (same logic as App.js)
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "";
-const API = BACKEND_URL ? `${BACKEND_URL} /api` : "/api";
+const API = BACKEND_URL ? `${BACKEND_URL}/api` : "/api";
 
 const LoginPage = ({ onLogin }) => {
     const [isLogin, setIsLogin] = useState(true);
@@ -22,19 +23,23 @@ const LoginPage = ({ onLogin }) => {
     const [avatarIndex, setAvatarIndex] = useState(0);
     const [isLoading, setIsLoading] = useState(false);
 
-    // Available local avatars
-    const AVATARS = [
+    // Filter avatars by gender
+    const MALE_AVATARS = [
         "/avatars/avatar_1.png",
         "/avatars/avatar_2.png",
-        "/avatars/avatar_3.png",
+        "/avatars/avatar_3.png"
+    ];
+    const FEMALE_AVATARS = [
         "/avatars/avatar_4.png",
         "/avatars/avatar_5.png"
     ];
 
-    // Randomize initial avatar or on refresh
+    const currentAvatars = formData.gender === "female" ? FEMALE_AVATARS : MALE_AVATARS;
+
+    // Reset avatar index when gender changes
     useEffect(() => {
-        setAvatarIndex(Math.floor(Math.random() * AVATARS.length));
-    }, []);
+        setAvatarIndex(0);
+    }, [formData.gender]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -57,7 +62,7 @@ const LoginPage = ({ onLogin }) => {
                     password: formData.password,
                     name: formData.name,
                     gender: formData.gender,
-                    avatar: AVATARS[avatarIndex]
+                    avatar: currentAvatars[avatarIndex]
                 });
                 userUser = response.data;
                 toast.success("Account created successfully!");
@@ -110,8 +115,8 @@ const LoginPage = ({ onLogin }) => {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in">
                                 {/* Avatar Preview */}
                                 <div className="flex justify-center md:justify-start">
-                                    <div className="w-24 h-24 rounded-2xl bg-white border-2 border-slate-100 shadow-xl overflow-hidden p-1 group cursor-pointer" onClick={() => setAvatarIndex((prev) => (prev + 1) % AVATARS.length)}>
-                                        <img src={AVATARS[avatarIndex]} alt="Avatar" className="w-full h-full object-cover rounded-xl bg-violet-50 group-hover:scale-110 transition-transform" />
+                                    <div className="w-24 h-24 rounded-2xl bg-white border-2 border-slate-100 shadow-xl overflow-hidden p-1 group cursor-pointer" onClick={() => setAvatarIndex((prev) => (prev + 1) % currentAvatars.length)}>
+                                        <img src={currentAvatars[avatarIndex]} alt="Avatar" className="w-full h-full object-cover rounded-xl bg-violet-50 group-hover:scale-110 transition-transform" />
                                     </div>
                                 </div>
 
