@@ -22,7 +22,9 @@ import {
   Link2,
 } from "lucide-react";
 import PomodoroTimer from "./PomodoroTimer";
-import TicTacToeReward from "./TicTacToeReward";
+import MemoryMatchGame from "./MemoryMatchGame";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 
 import confetti from "canvas-confetti";
 import useSound from "use-sound";
@@ -413,10 +415,11 @@ const Dashboard = ({
                     return (
                       <div
                         key={task.id}
-                        className={`task-card p-3 md:p-4 rounded-xl border transition-all animate-fade-in ${isActive
-                          ? "ring-2 ring-violet-500/30 border-violet-300 bg-violet-50/50"
-                          : "border-border/40 bg-card hover:bg-muted/30"
-                          }`}
+                        className={cn(
+                          "task-card p-3 md:p-4 rounded-xl border transition-all animate-fade-in",
+                          isActive ? "ring-2 ring-violet-500/30 border-violet-300 bg-violet-50/50" : "border-border/40 bg-card hover:bg-muted/30",
+                          task.deadline && new Date(task.deadline) < new Date().setHours(0, 0, 0, 0) && !task.completed && "border-red-300 bg-red-50/50 dark:bg-red-900/10"
+                        )}
                         style={{ animationDelay: `${index * 100}ms` }}
                         data-testid={`task-card-${task.id}`}
                       >
@@ -612,11 +615,11 @@ const Dashboard = ({
         © 2026 Pomodoro-Indefine
       </div>
       {/* Reward Dialog */}
-      <TicTacToeReward
-        isOpen={showReward}
-        onClose={() => setShowReward(false)}
-        taskName={rewardTaskName}
-      />
+      <Dialog open={showReward} onOpenChange={setShowReward}>
+        <DialogContent className="sm:max-w-md bg-transparent border-none shadow-none p-0 flex items-center justify-center">
+          <MemoryMatchGame onClose={() => setShowReward(false)} />
+        </DialogContent>
+      </Dialog>
     </div >
   );
 };
