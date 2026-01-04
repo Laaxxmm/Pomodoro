@@ -125,14 +125,15 @@ function App() {
     }
   }, [user]);
 
-  const fetchSettings = useCallback(async () => {
+  const fetchSettings = useCallback(async (currentUser = user) => {
     try {
-      const response = await axios.get(`${API}/settings`);
+      // Pass user_id to get user-specific settings (identifying integration status)
+      const response = await axios.get(`${API}/settings`, { params: { user_id: currentUser?.id } });
       setSettings(response.data);
     } catch (e) {
       console.error("Error fetching settings:", e);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     if (user) {
@@ -310,8 +311,9 @@ function App() {
             onOpenSettings={() => setShowSettings(true)}
             onOpenReport={() => setShowReport(true)}
             onOpenGoogleIntegration={() => setShowGoogleIntegration(true)}
+            onUpdateSettings={updateSettings}
             onToggleDarkMode={toggleDarkMode}
-            user={user}
+            user={user} // Pass user for isolated integrations
             onLogout={handleLogout}
           />
 
@@ -341,6 +343,7 @@ function App() {
             open={showGoogleIntegration}
             onClose={() => setShowGoogleIntegration(false)}
             settings={settings}
+            user={user}
             onRefresh={fetchSettings}
             onTasksImported={() => {
               fetchAllTasks();

@@ -29,7 +29,7 @@ import { toast } from "sonner";
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-const GoogleIntegrationDialog = ({ open, onClose, settings, onRefresh, onTasksImported }) => {
+const GoogleIntegrationDialog = ({ open, onClose, settings, user, onRefresh, onTasksImported }) => {
   const [calendarEvents, setCalendarEvents] = useState([]);
   const [emails, setEmails] = useState([]);
   const [loadingCalendar, setLoadingCalendar] = useState(false);
@@ -41,7 +41,7 @@ const GoogleIntegrationDialog = ({ open, onClose, settings, onRefresh, onTasksIm
 
   const connectGoogle = async () => {
     try {
-      const response = await axios.get(`${API}/auth/google/login`);
+      const response = await axios.get(`${API}/auth/google/login?user_id=${user?.id}`);
       window.location.href = response.data.authorization_url;
     } catch (e) {
       if (e.response?.status === 400) {
@@ -55,7 +55,7 @@ const GoogleIntegrationDialog = ({ open, onClose, settings, onRefresh, onTasksIm
 
   const disconnectGoogle = async () => {
     try {
-      await axios.post(`${API}/auth/google/disconnect`);
+      await axios.post(`${API}/auth/google/disconnect?user_id=${user?.id}`);
       toast.success("Google account disconnected");
       onRefresh();
     } catch (e) {
@@ -67,7 +67,7 @@ const GoogleIntegrationDialog = ({ open, onClose, settings, onRefresh, onTasksIm
   const fetchCalendarEvents = async () => {
     setLoadingCalendar(true);
     try {
-      const response = await axios.get(`${API}/calendar/events?days=7`);
+      const response = await axios.get(`${API}/calendar/events?days=7&user_id=${user?.id}`);
       setCalendarEvents(response.data.events || []);
     } catch (e) {
       console.error("Error fetching calendar:", e);
@@ -82,7 +82,7 @@ const GoogleIntegrationDialog = ({ open, onClose, settings, onRefresh, onTasksIm
   const fetchEmails = async () => {
     setLoadingEmails(true);
     try {
-      const response = await axios.get(`${API}/gmail/messages?max_results=10&query=is:unread`);
+      const response = await axios.get(`${API}/gmail/messages?max_results=10&query=is:unread&user_id=${user?.id}`);
       setEmails(response.data.messages || []);
     } catch (e) {
       console.error("Error fetching emails:", e);
@@ -97,7 +97,7 @@ const GoogleIntegrationDialog = ({ open, onClose, settings, onRefresh, onTasksIm
   const importCalendarEvents = async () => {
     setImporting(true);
     try {
-      const response = await axios.post(`${API}/calendar/import?days=7`);
+      const response = await axios.post(`${API}/calendar/import?days=7&user_id=${user?.id}`);
       toast.success(`Imported ${response.data.imported} events as tasks`);
       onTasksImported();
     } catch (e) {
@@ -111,7 +111,7 @@ const GoogleIntegrationDialog = ({ open, onClose, settings, onRefresh, onTasksIm
   const extractTasksFromEmail = async (emailId) => {
     setExtracting((prev) => ({ ...prev, [emailId]: true }));
     try {
-      const response = await axios.post(`${API}/gmail/extract-tasks?email_id=${emailId}`);
+      const response = await axios.post(`${API}/gmail/extract-tasks?email_id=${emailId}&user_id=${user?.id}`);
       if (response.data.extracted > 0) {
         toast.success(`Extracted ${response.data.extracted} tasks from email`);
         onTasksImported();
