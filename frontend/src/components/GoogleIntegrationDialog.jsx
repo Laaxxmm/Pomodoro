@@ -38,6 +38,27 @@ const GoogleIntegrationDialog = ({ open, onClose, settings, user, onRefresh, onT
   const [importing, setImporting] = useState(false);
   const [extracting, setExtracting] = useState({});
 
+  // Custom Credentials State
+  const [showConfig, setShowConfig] = useState(false);
+  const [clientId, setClientId] = useState("");
+  const [clientSecret, setClientSecret] = useState("");
+
+  // Save Custom Credentials
+  const saveConfig = async () => {
+    try {
+      await axios.post(`${API}/auth/google/config?user_id=${user?.id}`, {
+        client_id: clientId,
+        client_secret: clientSecret
+      });
+      toast.success("Credentials saved");
+      setShowConfig(false);
+      onRefresh();
+    } catch (e) {
+      toast.error("Failed to save credentials");
+    }
+  };
+
+
   // Connect Google
   const connectGoogle = async () => {
     if (!user?.id) {
