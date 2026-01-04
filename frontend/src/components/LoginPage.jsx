@@ -6,6 +6,8 @@ import { Sparkles, ArrowRight, User, Laptop } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import axios from "axios";
 import { toast } from "sonner";
+import useSound from "use-sound";
+import { LOGIN_SOUND } from "@/utils/sounds";
 
 // Define API URL (same logic as App.js)
 // Define API URL (same logic as App.js)
@@ -22,6 +24,8 @@ const LoginPage = ({ onLogin }) => {
     });
     const [avatarIndex, setAvatarIndex] = useState(0);
     const [isLoading, setIsLoading] = useState(false);
+
+    const [playLogin] = useSound(LOGIN_SOUND);
 
     // Filter avatars by gender
     const MALE_AVATARS = [
@@ -67,6 +71,9 @@ const LoginPage = ({ onLogin }) => {
                 userUser = response.data;
                 toast.success("Account created successfully!");
             }
+
+            // Play sound
+            playLogin();
 
             // Pass full user object (with ID) to parent
             onLogin(userUser);
