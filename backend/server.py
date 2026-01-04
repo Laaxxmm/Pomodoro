@@ -437,10 +437,10 @@ IMPORTANT: You MUST return the exact IDs provided in the list. Do not use titles
 # ============ GOOGLE OAUTH ROUTES ============
 
 @api_router.get("/auth/google/login")
-async def google_login():
-    """Initiate Google OAuth flow"""
+async def google_login(user_id: str):
+    """Initiate Google OAuth flow with user context"""
     if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
-        raise HTTPException(status_code=400, detail="Google OAuth not configured. Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to environment variables")
+        raise HTTPException(status_code=400, detail="Google OAuth not configured")
     
     scope = " ".join(GOOGLE_SCOPES)
     auth_url = (
@@ -450,16 +450,21 @@ async def google_login():
         f"response_type=code&"
         f"scope={scope}&"
         f"access_type=offline&"
-        f"prompt=consent"
+        f"prompt=consent&"
+        f"state={user_id}"
     )
     return {"authorization_url": auth_url}
 
 @api_router.get("/auth/google/callback")
-async def google_callback(code: str, error: Optional[str] = None):
+async def google_callback(code: str, state: Optional[str] = None, error: Optional[str] = None):
     """Handle Google OAuth callback"""
     if error:
         return RedirectResponse(url=f"/?error={error}")
     
+    user_id = state
+    if not user_id:
+        return RedirectResponse(url="/?error=missing_user_state")
+
     try:
         # Exchange code for tokens
         async with httpx.AsyncClient() as http_client:
@@ -487,18 +492,18 @@ async def google_callback(code: str, error: Optional[str] = None):
             )
             user_info = user_response.json()
             
-            # Save tokens to settings
+            # Save tokens to USERS table
             expiry = (datetime.now(timezone.utc) + timedelta(seconds=token_data.get("expires_in", 3600))).isoformat()
             
             if supabase:
-                supabase.table("settings").update({
+                supabase.table("users").update({
                     "google_access_token": token_data["access_token"],
                     "google_refresh_token": token_data.get("refresh_token"),
                     "google_token_expiry": expiry,
                     "google_email": user_info.get("email"),
                     "google_calendar_connected": True,
                     "gmail_connected": True
-                }).eq("id", "user_settings").execute()
+                }).eq("id", user_id).execute()
             
             return RedirectResponse(url="/?google_connected=true")
             
@@ -507,17 +512,17 @@ async def google_callback(code: str, error: Optional[str] = None):
         return RedirectResponse(url=f"/?error={str(e)[:50]}")
 
 @api_router.post("/auth/google/disconnect")
-def google_disconnect():
+def google_disconnect(user_id: str):
     """Disconnect Google account"""
     if supabase:
-        supabase.table("settings").update({
+        supabase.table("users").update({
             "google_access_token": None,
             "google_refresh_token": None,
             "google_token_expiry": None,
             "google_email": None,
             "google_calendar_connected": False,
             "gmail_connected": False
-        }).eq("id", "user_settings").execute()
+        }).eq("id", user_id).execute()
     return {"success": True}
 
 # ============ GOOGLE CALENDAR ROUTES ============
