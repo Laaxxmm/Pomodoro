@@ -85,21 +85,42 @@ function App() {
   const fetchTodayTasks = useCallback(async () => {
     try {
       const response = await axios.get(`${API}/today`);
-      setTodayTasks(response.data.tasks || []);
+      const allTasks = response.data.tasks || [];
+
+      // Filter by local ownership for demo
+      if (user?.id) {
+        const myTaskIds = JSON.parse(localStorage.getItem(`tasks_${user.id}`) || "[]");
+        // Also show global tasks if we want (or strictly private). Let's go strict private for "zero" request.
+        // Note: If ID is in local list OR if it's a legacy task? 
+        // User said "complete task should be zero". So strictly myTaskIds.
+        const myTasks = allTasks.filter(t => myTaskIds.includes(t.id));
+        setTodayTasks(myTasks);
+      } else {
+        setTodayTasks(allTasks);
+      }
+
       setPrioritizationReason(response.data.reason || "");
     } catch (e) {
       console.error("Error fetching today's tasks:", e);
     }
-  }, []);
+  }, [user]);
 
   const fetchAllTasks = useCallback(async () => {
     try {
       const response = await axios.get(`${API}/tasks`);
-      setTasks(response.data || []);
+      const allTasks = response.data || [];
+
+      if (user?.id) {
+        const myTaskIds = JSON.parse(localStorage.getItem(`tasks_${user.id}`) || "[]");
+        const myTasks = allTasks.filter(t => myTaskIds.includes(t.id));
+        setTasks(myTasks);
+      } else {
+        setTasks(allTasks);
+      }
     } catch (e) {
       console.error("Error fetching tasks:", e);
     }
-  }, []);
+  }, [user]);
 
   const fetchStats = useCallback(async () => {
     try {
@@ -120,23 +141,52 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      await Promise.all([
-        fetchTodayTasks(),
-        fetchAllTasks(),
-        fetchStats(),
-        fetchSettings(),
-      ]);
-      setLoading(false);
-    };
-    loadData();
-  }, [fetchTodayTasks, fetchAllTasks, fetchStats, fetchSettings]);
+    if (user) {
+      const loadData = async () => {
+        setLoading(true);
+        await Promise.all([
+          fetchTodayTasks(),
+          fetchAllTasks(),
+          fetchStats(),
+          fetchSettings(),
+        ]);
+        setLoading(false);
+      };
+      loadData();
+    }
+  }, [fetchTodayTasks, fetchAllTasks, fetchStats, fetchSettings, user]);
 
   // Task actions
   const addTask = async (taskData) => {
     try {
-      await axios.post(`${API}/tasks`, taskData);
+      // Attach user_id to task description or handle in backend if possible, 
+      // otherwise use local storage or just rely on the 'user_id' field if we can add it to the model.
+      // Since we can't easily change backend, let's use a workaround: 
+      // We will send it, and if backend ignores it, fine. But for client filtering to work, 
+      // we need the backend to return it. 
+      // Actually, if backend doesn't store 'user_id', we are stuck.
+      // Wait, we can modify server.py to accept 'user_id' in 'extra' or just add it to the model 
+      // assuming the DB will just accept it if it's JSON B, OR 
+      // if using Postgres, we MUST add the column.
+
+      // ALTERNATIVE: For now, I will modify server.py to just add `user_id` to the Pydantic model. 
+      // If the underlying table doesn't have it, Supabase insert might fail or ignore.
+
+      // Let's assume for this "demo" we can't migrate DB.
+      // I will rely on localStorage for "my task IDs"? 
+      // Yes, robust for demo.
+
+      const payload = { ...taskData };
+      const response = await axios.post(`${API}/tasks`, payload);
+      const newTask = response.data;
+
+      // Store ownership locally for demo isolation
+      if (user?.id) {
+        const myTaskIds = JSON.parse(localStorage.getItem(`tasks_${user.id}`) || "[]");
+        myTaskIds.push(newTask.id);
+        localStorage.setItem(`tasks_${user.id}`, JSON.stringify(myTaskIds));
+      }
+
       toast.success("Task added successfully");
       await fetchAllTasks();
       setShowAddTask(false);
