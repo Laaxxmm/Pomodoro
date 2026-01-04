@@ -1038,11 +1038,12 @@ def login(creds: UserLogin):
         # Fetch user
         response = supabase.table("users").select("*").eq("email", creds.email).execute()
         if not response.data:
-            raise HTTPException(status_code=401, detail="Invalid email or password")
+            # DEBUG: Specific error
+            raise HTTPException(status_code=401, detail="User not found (Check RLS Policy?)")
         
         user = response.data[0]
         if not verify_password(creds.password, user["password_hash"]):
-            raise HTTPException(status_code=401, detail="Invalid email or password")
+            raise HTTPException(status_code=401, detail="Password mismatch")
             
         return {
             "id": user["id"],
