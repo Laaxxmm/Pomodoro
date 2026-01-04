@@ -1049,8 +1049,8 @@ def login(creds: UserLogin):
             "id": user["id"],
             "name": user["name"],
             "email": user["email"],
-            "gender": user.gender,
-            "avatar": user.avatar
+            "gender": user["gender"],
+            "avatar": user["avatar"]
         }
     except HTTPException:
         raise
