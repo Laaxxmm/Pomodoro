@@ -84,18 +84,13 @@ function App() {
   // Fetch data
   const fetchTodayTasks = useCallback(async (currentUser) => {
     try {
-      const response = await axios.get(`${API}/today`);
-      const allTasks = response.data.tasks || [];
       const u = currentUser || user;
-
+      let url = `${API}/today`;
       if (u?.id) {
-        const myTaskIds = JSON.parse(localStorage.getItem(`tasks_${u.id}`) || "[]");
-        const myTasks = allTasks.filter(t => myTaskIds.includes(t.id));
-        setTodayTasks(myTasks);
-      } else {
-        setTodayTasks(allTasks);
+        url += `?user_id=${u.id}`;
       }
-
+      const response = await axios.get(url);
+      setTodayTasks(response.data.tasks || []);
       setPrioritizationReason(response.data.reason || "");
     } catch (e) {
       console.error("Error fetching today's tasks:", e);
@@ -104,17 +99,13 @@ function App() {
 
   const fetchAllTasks = useCallback(async (currentUser) => {
     try {
-      const response = await axios.get(`${API}/tasks`);
-      const allTasks = response.data || [];
       const u = currentUser || user;
-
+      let url = `${API}/tasks`;
       if (u?.id) {
-        const myTaskIds = JSON.parse(localStorage.getItem(`tasks_${u.id}`) || "[]");
-        const myTasks = allTasks.filter(t => myTaskIds.includes(t.id));
-        setTasks(myTasks);
-      } else {
-        setTasks(allTasks);
+        url += `?user_id=${u.id}`;
       }
+      const response = await axios.get(url);
+      setTasks(response.data || []);
     } catch (e) {
       console.error("Error fetching tasks:", e);
     }
