@@ -8,6 +8,7 @@ import AddTaskDialog from "@/components/AddTaskDialog";
 import SettingsDialog from "@/components/SettingsDialog";
 import WeeklyReportDialog from "@/components/WeeklyReportDialog";
 import GoogleIntegrationDialog from "@/components/GoogleIntegrationDialog";
+import LoginPage from "@/components/LoginPage";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "";
 const API = BACKEND_URL ? `${BACKEND_URL}/api` : "/api";
@@ -40,7 +41,23 @@ function App() {
   const [showReport, setShowReport] = useState(false);
   const [showGoogleIntegration, setShowGoogleIntegration] = useState(false);
   const [activeTask, setActiveTask] = useState(null);
+  const [activeTask, setActiveTask] = useState(null);
   const [currentSession, setCurrentSession] = useState(null);
+  const [user, setUser] = useState(() => {
+    const saved = localStorage.getItem("focus_user");
+    return saved ? JSON.parse(saved) : null;
+  });
+
+  const handleLogin = (userData) => {
+    setUser(userData);
+    localStorage.setItem("focus_user", JSON.stringify(userData));
+    toast.success(`Welcome back, ${userData.name}!`);
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    localStorage.removeItem("focus_user");
+  };
 
   // Apply dark mode
   useEffect(() => {
@@ -245,64 +262,72 @@ function App() {
 
   return (
     <div className="app-container">
-      <Dashboard
-        todayTasks={todayTasks}
-        allTasks={tasks}
-        stats={stats}
-        settings={settings}
-        loading={loading}
-        isPrioritizing={isPrioritizing}
-        prioritizationReason={prioritizationReason}
-        activeTask={activeTask}
-        currentSession={currentSession}
-        onAddTask={() => setShowAddTask(true)}
-        onCompleteTask={completeTask}
-        onDeleteTask={deleteTask}
-        onPrioritize={prioritizeTasks}
-        onStartPomodoro={startPomodoro}
-        onCompletePomodoro={completePomodoro}
-        onStopPomodoro={() => {
-          setActiveTask(null);
-          setCurrentSession(null);
-        }}
-        onOpenSettings={() => setShowSettings(true)}
-        onOpenReport={() => setShowReport(true)}
-        onOpenGoogleIntegration={() => setShowGoogleIntegration(true)}
-        onToggleDarkMode={toggleDarkMode}
-      />
+      {!user ? (
+        <LoginPage onLogin={handleLogin} />
+      ) : (
+        <>
+          <Dashboard
+            todayTasks={todayTasks}
+            allTasks={tasks}
+            stats={stats}
+            settings={settings}
+            loading={loading}
+            isPrioritizing={isPrioritizing}
+            prioritizationReason={prioritizationReason}
+            activeTask={activeTask}
+            currentSession={currentSession}
+            onAddTask={() => setShowAddTask(true)}
+            onCompleteTask={completeTask}
+            onDeleteTask={deleteTask}
+            onPrioritize={prioritizeTasks}
+            onStartPomodoro={startPomodoro}
+            onCompletePomodoro={completePomodoro}
+            onStopPomodoro={() => {
+              setActiveTask(null);
+              setCurrentSession(null);
+            }}
+            onOpenSettings={() => setShowSettings(true)}
+            onOpenReport={() => setShowReport(true)}
+            onOpenGoogleIntegration={() => setShowGoogleIntegration(true)}
+            onToggleDarkMode={toggleDarkMode}
+            user={user}
+            onLogout={handleLogout}
+          />
 
-      <AddTaskDialog
-        open={showAddTask}
-        onClose={() => setShowAddTask(false)}
-        onAdd={addTask}
-      />
+          <AddTaskDialog
+            open={showAddTask}
+            onClose={() => setShowAddTask(false)}
+            onAdd={addTask}
+          />
 
-      <SettingsDialog
-        open={showSettings}
-        onClose={() => setShowSettings(false)}
-        settings={settings}
-        onSave={updateSettings}
-        onOpenGoogleIntegration={() => {
-          setShowSettings(false);
-          setShowGoogleIntegration(true);
-        }}
-      />
+          <SettingsDialog
+            open={showSettings}
+            onClose={() => setShowSettings(false)}
+            settings={settings}
+            onSave={updateSettings}
+            onOpenGoogleIntegration={() => {
+              setShowSettings(false);
+              setShowGoogleIntegration(true);
+            }}
+          />
 
-      <WeeklyReportDialog
-        open={showReport}
-        onClose={() => setShowReport(false)}
-      />
+          <WeeklyReportDialog
+            open={showReport}
+            onClose={() => setShowReport(false)}
+          />
 
-      <GoogleIntegrationDialog
-        open={showGoogleIntegration}
-        onClose={() => setShowGoogleIntegration(false)}
-        settings={settings}
-        onRefresh={fetchSettings}
-        onTasksImported={() => {
-          fetchAllTasks();
-          fetchTodayTasks();
-        }}
-      />
+          <GoogleIntegrationDialog
+            open={showGoogleIntegration}
+            onClose={() => setShowGoogleIntegration(false)}
+            settings={settings}
+            onRefresh={fetchSettings}
+            onTasksImported={() => {
+              fetchAllTasks();
+              fetchTodayTasks();
+            }}
+          />
+        </>
+      )}
 
       <Toaster
         position="bottom-right"
