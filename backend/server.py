@@ -135,7 +135,8 @@ def create_task(task_input: TaskCreate):
         is_recurring=task_input.is_recurring,
         recurrence_type=task_input.recurrence_type,
         recurrence_interval=task_input.recurrence_interval,
-        recurrence_days=task_input.recurrence_days
+        recurrence_days=task_input.recurrence_days,
+        user_id=task_input.user_id
     )
     
     try:
