@@ -260,7 +260,7 @@ async def refresh_google_token(user_id: str):
         return None
         
     try:
-        user_resp = supabase.table("users").select("google_refresh_token").eq("id", user_id).single().execute()
+        user_resp = supabase.table("users").select("google_refresh_token, google_client_id, google_client_secret").eq("id", user_id).single().execute()
         if not user_resp.data:
             return None
             
@@ -268,12 +268,16 @@ async def refresh_google_token(user_id: str):
         if not refresh_token:
             return None
 
+        # Determine creds
+        client_id = user_resp.data.get("google_client_id") or GOOGLE_CLIENT_ID
+        client_secret = user_resp.data.get("google_client_secret") or GOOGLE_CLIENT_SECRET
+
         async with httpx.AsyncClient() as client:
             token_response = await client.post(
                 "https://oauth2.googleapis.com/token",
                 data={
-                    "client_id": GOOGLE_CLIENT_ID,
-                    "client_secret": GOOGLE_CLIENT_SECRET,
+                    "client_id": client_id,
+                    "client_secret": client_secret,
                     "refresh_token": refresh_token,
                     "grant_type": "refresh_token"
                 }
@@ -463,16 +467,50 @@ IMPORTANT: You MUST return the exact IDs provided in the list. Do not use titles
 
 # ============ GOOGLE OAUTH ROUTES ============
 
+@api_router.post("/auth/google/config")
+def update_google_config(config: dict, user_id: str):
+    """Update user's custom Google Credentials"""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Database not connected")
+    
+    supabase.table("users").update({
+        "google_client_id": config.get("client_id"),
+        "google_client_secret": config.get("client_secret")
+    }).eq("id", user_id).execute()
+    
+    return {"success": True}
+
+async def get_google_creds(user_id: str):
+    """Get effective Google Credentials (User specific or Env)"""
+    client_id = GOOGLE_CLIENT_ID
+    client_secret = GOOGLE_CLIENT_SECRET
+    
+    if user_id and supabase:
+        try:
+            resp = supabase.table("users").select("google_client_id, google_client_secret").eq("id", user_id).single().execute()
+            if resp.data:
+                u_cid = resp.data.get("google_client_id")
+                u_sec = resp.data.get("google_client_secret")
+                if u_cid and u_sec:
+                    client_id = u_cid
+                    client_secret = u_sec
+        except:
+            pass
+            
+    return client_id, client_secret
+
 @api_router.get("/auth/google/login")
 async def google_login(user_id: str):
     """Initiate Google OAuth flow with user context"""
-    if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
-        raise HTTPException(status_code=400, detail="Google OAuth not configured")
+    client_id, client_secret = await get_google_creds(user_id)
+
+    if not client_id or not client_secret:
+        raise HTTPException(status_code=400, detail="Google OAuth not configured. Provide credentials in settings.")
     
     scope = " ".join(GOOGLE_SCOPES)
     auth_url = (
         f"https://accounts.google.com/o/oauth2/v2/auth?"
-        f"client_id={GOOGLE_CLIENT_ID}&"
+        f"client_id={client_id}&"
         f"redirect_uri={GOOGLE_REDIRECT_URI}&"
         f"response_type=code&"
         f"scope={scope}&"
@@ -493,14 +531,19 @@ async def google_callback(code: str, state: Optional[str] = None, error: Optiona
         return RedirectResponse(url="/?error=missing_user_state")
 
     try:
+        client_id, client_secret = await get_google_creds(user_id)
+
+        if not client_id or not client_secret:
+             return RedirectResponse(url="/?error=missing_credentials")
+
         # Exchange code for tokens
         async with httpx.AsyncClient() as http_client:
             token_response = await http_client.post(
                 "https://oauth2.googleapis.com/token",
                 data={
                     "code": code,
-                    "client_id": GOOGLE_CLIENT_ID,
-                    "client_secret": GOOGLE_CLIENT_SECRET,
+                    "client_id": client_id,
+                    "client_secret": client_secret,
                     "redirect_uri": GOOGLE_REDIRECT_URI,
                     "grant_type": "authorization_code"
                 }
@@ -854,9 +897,10 @@ def get_user_settings(user_id: Optional[str] = None):
     if user_id and supabase:
         try:
             # Merge user-specific integration status
-            user_resp = supabase.table("users").select("google_email, google_calendar_connected, gmail_connected").eq("id", user_id).single().execute()
+            user_resp = supabase.table("users").select("google_email, google_calendar_connected, gmail_connected, google_client_id").eq("id", user_id).single().execute()
             if user_resp.data:
                 settings.update(user_resp.data)
+                settings["has_custom_creds"] = bool(user_resp.data.get("google_client_id"))
         except Exception as e:
             logger.error(f"Error fetching user settings: {e}")
             
