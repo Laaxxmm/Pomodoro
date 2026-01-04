@@ -37,32 +37,54 @@ const GoogleIntegrationDialog = ({ open, onClose, settings, user, onRefresh, onT
   const [importing, setImporting] = useState(false);
   const [extracting, setExtracting] = useState({});
 
+  // Connect Google
+  const connectGoogle = async () => {
+    if (!user?.id) {
+      toast.error("User ID missing. Try logging out and back in.");
+      return;
+    }
+
+    try {
+      const response = await axios.get(`${API}/auth/google/login`, {
+        params: { user_id: user.id }
+      });
+      window.location.href = response.data.authorization_url;
+    } catch (e) {
+      const status = e.response?.status;
+      const detail = e.response?.data?.detail;
+
+      console.error("Google Auth Error:", e);
+
+      if (status === 400) {
+        toast.error("Google OAuth not configured. Check backend env.");
+      } else if (status === 422) {
+        toast.error("Validation Error: Missing User ID.");
+      } else {
+        toast.error(`Connection Failed (${status || "Network"}): ${detail || e.message}`);
+      }
+    }
+  };
+
   const isConnected = settings.google_calendar_connected || settings.gmail_connected;
 
-  if (!user?.id) {
-    toast.error("User ID missing. Try logging out and back in.");
-    return;
+  const response = await axios.get(`${API}/auth/google/login`, {
+    params: { user_id: user.id }
+  });
+  window.location.href = response.data.authorization_url;
+} catch (e) {
+  const status = e.response?.status;
+  const detail = e.response?.data?.detail;
+
+  console.error("Google Auth Error:", e);
+
+  if (status === 400) {
+    toast.error("Google OAuth not configured. Check backend env.");
+  } else if (status === 422) {
+    toast.error("Validation Error: Missing User ID.");
+  } else {
+    toast.error(`Connection Failed (${status || "Network"}): ${detail || e.message}`);
   }
-
-  try {
-    const response = await axios.get(`${API}/auth/google/login`, {
-      params: { user_id: user.id }
-    });
-    window.location.href = response.data.authorization_url;
-  } catch (e) {
-    const status = e.response?.status;
-    const detail = e.response?.data?.detail;
-
-    console.error("Google Auth Error:", e);
-
-    if (status === 400) {
-      toast.error("Google OAuth not configured. Check backend env.");
-    } else if (status === 422) {
-      toast.error("Validation Error: Missing User ID.");
-    } else {
-      toast.error(`Connection Failed (${status || "Network"}): ${detail || e.message}`);
-    }
-  }
+}
 };
 
 const disconnectGoogle = async () => {
