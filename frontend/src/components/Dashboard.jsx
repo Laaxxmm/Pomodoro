@@ -24,6 +24,10 @@ import {
 import PomodoroTimer from "./PomodoroTimer";
 import TicTacToeReward from "./TicTacToeReward";
 
+import confetti from "canvas-confetti";
+import useSound from "use-sound";
+import { COMPLETION_SOUND, LOGOUT_SOUND } from "@/utils/sounds";
+
 const Dashboard = ({
   todayTasks,
   allTasks,
@@ -52,10 +56,26 @@ const Dashboard = ({
   const [showReward, setShowReward] = useState(false);
   const [rewardTaskName, setRewardTaskName] = useState("");
 
+  const [playComplete] = useSound(COMPLETION_SOUND);
+  const [playLogout] = useSound(LOGOUT_SOUND);
+
   const handleTaskCompletion = (task) => {
+    // Sound & Visuals
+    playComplete();
+    confetti({
+      particleCount: 100,
+      spread: 70,
+      origin: { y: 0.6 }
+    });
+
     onCompleteTask(task.id, task.time_spent_seconds);
     setRewardTaskName(task.title);
     setShowReward(true);
+  };
+
+  const handleLogout = () => {
+    playLogout();
+    onLogout();
   };
 
   const formatDate = () => {
@@ -151,8 +171,12 @@ const Dashboard = ({
                 <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
               </div>
               <div className="absolute top-10 right-0 w-32 bg-white dark:bg-slate-900 shadow-xl rounded-xl p-1 hidden group-hover:block z-50 border border-border">
-                <Button variant="ghost" size="sm" className="w-full text-left justify-start text-xs text-red-500 hover:text-red-600 hover:bg-red-50" onClick={onLogout}>
-                  Sign Out
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full text-left justify-start text-xs text-red-500 hover:text-red-600 hover:bg-red-50"
+                  onClick={handleLogout}
+                >    Sign Out
                 </Button>
               </div>
             </div>
@@ -534,7 +558,7 @@ const Dashboard = ({
             onComplete={onCompletePomodoro}
             onStop={onStopPomodoro}
             onTaskComplete={(timeSpent) =>
-              onCompleteTask(activeTask?.id, timeSpent)
+              handleTaskCompletion({ ...activeTask, time_spent_seconds: timeSpent })
             }
           />
         </aside>
