@@ -13,17 +13,24 @@ const LoginPage = ({ onLogin }) => {
         gender: "male" // male, female
     });
     const [avatarUrl, setAvatarUrl] = useState("");
+    const [isLoading, setIsLoading] = useState(false);
 
     // Generate avatar
     useEffect(() => {
         const seed = formData.name || "user";
-        // Using 'Micah' style for a clean, professional, non-"puking" look
-        // This style is very popular in modern UI
-        setAvatarUrl(`https://api.dicebear.com/9.x/micah/svg?seed=${seed}&baseColor=f9c9b6&mouth=smile,laugh&eyebrows=up`);
+        // Using version 7.x which is very stable
+        // Styles: 'micah' is great. 'avataaars' is classic.
+        // Let's stick to 'micah' but Ensure URL is correct.
+        setAvatarUrl(`https://api.dicebear.com/7.x/micah/svg?seed=${seed}&baseColor=f9c9b6&mouth=smile,laugh&eyebrows=up`);
     }, [formData.name, formData.gender]);
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
+        setIsLoading(true);
+
+        // Simulate network delay for smoothness (prevent instant flash)
+        await new Promise(resolve => setTimeout(resolve, 800));
+
         onLogin({
             name: formData.name || "User",
             email: formData.email,
@@ -35,6 +42,14 @@ const LoginPage = ({ onLogin }) => {
 
     return (
         <div className="min-h-screen flex w-full bg-white text-slate-900 font-sans">
+            {/* Loading Overlay */}
+            {isLoading && (
+                <div className="fixed inset-0 bg-white/80 backdrop-blur-sm z-50 flex items-center justify-center flex-col animate-in fade-in duration-300">
+                    <div className="w-16 h-16 border-4 border-violet-200 border-t-violet-600 rounded-full animate-spin mb-4"></div>
+                    <p className="text-lg font-medium text-slate-600 animate-pulse">Setting up your workspace...</p>
+                </div>
+            )}
+
             {/* Left Side - Form */}
             <div className="w-full lg:w-1/2 flex items-center justify-center p-8 lg:p-12 relative overflow-hidden">
 

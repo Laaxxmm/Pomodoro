@@ -82,17 +82,14 @@ function App() {
   }, []);
 
   // Fetch data
-  const fetchTodayTasks = useCallback(async () => {
+  const fetchTodayTasks = useCallback(async (currentUser) => {
     try {
       const response = await axios.get(`${API}/today`);
       const allTasks = response.data.tasks || [];
+      const u = currentUser || user;
 
-      // Filter by local ownership for demo
-      if (user?.id) {
-        const myTaskIds = JSON.parse(localStorage.getItem(`tasks_${user.id}`) || "[]");
-        // Also show global tasks if we want (or strictly private). Let's go strict private for "zero" request.
-        // Note: If ID is in local list OR if it's a legacy task? 
-        // User said "complete task should be zero". So strictly myTaskIds.
+      if (u?.id) {
+        const myTaskIds = JSON.parse(localStorage.getItem(`tasks_${u.id}`) || "[]");
         const myTasks = allTasks.filter(t => myTaskIds.includes(t.id));
         setTodayTasks(myTasks);
       } else {
@@ -105,13 +102,14 @@ function App() {
     }
   }, [user]);
 
-  const fetchAllTasks = useCallback(async () => {
+  const fetchAllTasks = useCallback(async (currentUser) => {
     try {
       const response = await axios.get(`${API}/tasks`);
       const allTasks = response.data || [];
+      const u = currentUser || user;
 
-      if (user?.id) {
-        const myTaskIds = JSON.parse(localStorage.getItem(`tasks_${user.id}`) || "[]");
+      if (u?.id) {
+        const myTaskIds = JSON.parse(localStorage.getItem(`tasks_${u.id}`) || "[]");
         const myTasks = allTasks.filter(t => myTaskIds.includes(t.id));
         setTasks(myTasks);
       } else {
@@ -144,9 +142,10 @@ function App() {
     if (user) {
       const loadData = async () => {
         setLoading(true);
+        // Pass user explicitly to avoid any race conditions with state updates
         await Promise.all([
-          fetchTodayTasks(),
-          fetchAllTasks(),
+          fetchTodayTasks(user),
+          fetchAllTasks(user),
           fetchStats(),
           fetchSettings(),
         ]);
