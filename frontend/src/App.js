@@ -311,7 +311,6 @@ function App() {
             onOpenSettings={() => setShowSettings(true)}
             onOpenReport={() => setShowReport(true)}
             onOpenGoogleIntegration={() => setShowGoogleIntegration(true)}
-            onUpdateSettings={updateSettings}
             onToggleDarkMode={toggleDarkMode}
             user={user} // Pass user for isolated integrations
             onLogout={handleLogout}
