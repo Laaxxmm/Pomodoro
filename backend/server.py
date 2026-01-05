@@ -1262,13 +1262,17 @@ async def get_today_tasks(user_id: Optional[str] = None):
             task_ids = plan.get("task_ids", [])
             
             if task_ids:
-                # Get tasks
+                # Get tasks - Since we already filtered daily_plan by user_id,
+                # we can trust these task_ids. Handle legacy tasks without user_id.
                 t_query = supabase.table("tasks").select("*").in_("id", task_ids).eq("completed", False)
-                if user_id:
-                    t_query = t_query.eq("user_id", user_id)
                 
                 tasks_resp = t_query.execute()
                 tasks = tasks_resp.data
+                
+                # Filter client-side to match user_id OR null (backward compatibility)
+                if user_id:
+                    tasks = [t for t in tasks if t.get("user_id") == user_id or t.get("user_id") is None]
+                
                 return {
                     "date": today,
                     "tasks": tasks,
