@@ -1264,14 +1264,19 @@ async def get_today_tasks(user_id: Optional[str] = None):
             if task_ids:
                 # Get tasks - Since we already filtered daily_plan by user_id,
                 # we can trust these task_ids. Handle legacy tasks without user_id.
+                logger.info(f"Fetching tasks for IDs: {task_ids}, user_id: {user_id}")
                 t_query = supabase.table("tasks").select("*").in_("id", task_ids).eq("completed", False)
                 
                 tasks_resp = t_query.execute()
-                tasks = tasks_resp.data
+                all_fetched_tasks = tasks_resp.data
+                logger.info(f"Fetched {len(all_fetched_tasks)} uncompleted tasks from DB")
                 
                 # Filter client-side to match user_id OR null (backward compatibility)
                 if user_id:
-                    tasks = [t for t in tasks if t.get("user_id") == user_id or t.get("user_id") is None]
+                    tasks = [t for t in all_fetched_tasks if t.get("user_id") == user_id or t.get("user_id") is None]
+                    logger.info(f"After user_id filter: {len(tasks)} tasks remaining")
+                else:
+                    tasks = all_fetched_tasks
                 
                 return {
                     "date": today,
